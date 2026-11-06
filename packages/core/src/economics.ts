@@ -193,15 +193,18 @@ export function computeEconomics(input: EconomicsInput): EconomicsReport {
   );
   const verifiedAll = [...live, ...shadow];
 
-  // Cumulative token series: baseline pays per execution; BigForge pays the investment up front.
+  // Cumulative token series: baseline pays per execution; BigForge pays the investment up front and then
+  // the baseline cost minus the headline per-execution saving. Using the same saving as the headline ROI
+  // and break-even means the two lines cross exactly where the break-even says they do.
   const series: EconomicsReport['series'] = [];
   const steps = Math.max(12, Math.min(N, 40));
+  const bigforgePerExecution = Math.max(0, baselineMean - perTokens);
   for (let i = 0; i <= steps; i += 1) {
     const k = Math.round((i / steps) * N);
     series.push({
       execution: k,
       baselineCumulative: Math.round(k * baselineMean),
-      bigforgeCumulative: Math.round(investTokens + k * reflexMeanTokens),
+      bigforgeCumulative: Math.round(investTokens + k * bigforgePerExecution),
     });
   }
 
