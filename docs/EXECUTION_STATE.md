@@ -7,12 +7,12 @@
 
 | Field | Value |
 |---|---|
-| Last updated (UTC) | 2026-11-06T09:05Z |
+| Last updated (UTC) | 2026-11-06T09:55Z |
 | Branch | `main` (local; **not pushed**) |
 | Remote | `origin` → `https://github.com/snowjug/BigForge.git` (confirmed) |
 | Base commit | `a879b60` docs: define BigForge proof-of-concept vision |
-| Checkpoint commits | `397f1cc` foundation + core engine · `ab1d00f` persistence, services, demo director · `bed996c` HTTP API + design brief · `dcd8f32` observability, worker, build + demo verification · `462524b` engine/provider/hardening/lab tests + architecture, metrics, security, formats docs · `c786654` integrity test, Playwright config, bundle e2e · `d2eec9e` CSP doc fix |
-| Active milestone | **M4 (premium UI)**; M1–M3 backend complete and validated; M7 backend tests complete (108 + integrity) |
+| Checkpoint commits | `397f1cc` foundation + core engine · `ab1d00f` persistence, services, demo director · `bed996c` HTTP API + design brief · `dcd8f32` observability, worker, build + demo verification · `462524b`/`c786654`/`d2eec9e` tests, docs, Playwright config · `c0cb21e` Azure Bicep, CI, container · `f67b22c` scanner · `55446ce` judge Q&A · `4898f1c` security review fixes (136 backend tests pass) |
+| Active milestone | **M4 (premium UI)**: UI foundation + shared viz + three page agents running; M1–M3, M6, M8 (authored, not deployed) done; backend M7 tests done |
 | Classification target | HACKATHON-READY |
 
 ## What exists and works (validated, see VALIDATION_LEDGER.md)
@@ -23,9 +23,9 @@
 
 ## In progress / next
 
-1. **Web UI** (`apps/web`) is being built by background agents (foundation → three page agents). Design brief: [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). API contract: `packages/schemas/src/api.ts` + `apps/api/src/routes/*.ts`.
-2. Azure/CI/Docker assets are being authored by a background agent (allowlist: `infra/**`, `.github/workflows/**`, `Dockerfile`, `.dockerignore`, `docs/AZURE.md`, `scripts/azure-*.sh`). Files exist but are **uncommitted and unreviewed** until the agent reports.
-3. Still to do: Playwright critical-flow + accessibility e2e (config and `e2e/bundle.spec.ts` exist), visual validation, container build, README + screenshots + demo guide, release gate, push.
+1. **Web UI** (`apps/web`) is being built by background agents (uncommitted working-tree changes until each reports): `ui-foundation` (shell, primitives, API hooks, presenter bar, Home/Login/Settings/Governance, `scripts/shot.mjs`), `viz-core` (`src/viz/**`: ForgeGraph, ReflexGlyph), and three page agents using the shared brief in the session `files/wave2-common.md`: `run-console` (Run, Traces), `learn-reflexes` (Learn, Reflexes, Shadow), `economics-drift` (Economics, Drift). Design brief: [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). API contract: `packages/schemas/src/api.ts` + `apps/api/src/routes/*.ts`. **If the session resets**: `git status` shows which `apps/web` files exist; review them, run `npx tsc -p apps/web/tsconfig.json --noEmit`, and finish any page still rendering `PageStub`.
+2. Dev data snapshots for UI work live in `/tmp/bf-snapshots/<stage>/bigforge.db` (stages `fresh`, `learned`, `validated`, `promoted`, `killer`, `drifted`, `complete`; temporary, regenerate by seeding a server: `POST /api/demo/seed {"stage":"complete"}` as `grace@acme.test` with `X-BigForge-Client: web`). The seeded Reflex approval in these older snapshots is attributed to Grace; current code records seeded approvals as a simulated system approval.
+3. Still to do after the UI lands: wire the production-mode guard in the UI (hide the presenter and demo actions when `GET /api/auth/me` reports `mode: production`; the demo endpoints 404 there), Playwright critical-flow + accessibility e2e (config and `e2e/bundle.spec.ts` exist; browsers via `npx playwright install chromium`), visual validation, container build with the real UI, README (original moved to `docs/VISION.md`) with real screenshots and the demo guide, release gate, push.
 
 Exact next command: `npm run dev` (API http://127.0.0.1:4747 + Vite http://127.0.0.1:5173), then sign in as `grace@acme.test` / `forge-demo`.
 
