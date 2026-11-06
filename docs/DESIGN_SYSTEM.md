@@ -99,3 +99,27 @@ Every page needs real loading (skeleton), empty (what to do next), and error (re
 ## Engineering rules for the web app
 
 React 19, TypeScript strict (no `any`), React Router, TanStack Query (retries off for mutations; invalidate after actions), no component library, hand-written CSS (tokens + CSS files per area), `lucide-react` icons, custom SVG for visualizations (no chart library). All requests go through `apps/web/src/api/client.ts` which sets `X-BigForge-Client: web`, `credentials: 'same-origin'`, and parses errors into `ApiError`. Types come from `@bigforge/schemas` (never import server packages). Layout algorithms and formatters are plain `.ts` with unit tests (Vitest, node environment).
+
+## Corrections and additions from the foundation build
+
+Refinements made while building `apps/web` (tokens in `apps/web/src/styles/tokens.css` are the source of truth; conventions for page authors are in `apps/web/src/routes.md`).
+
+### Tokens
+
+- `--text-faint` is **`#94928c`** in dark (was `#8a8883`) and **`#67635b`** in light, so faint text passes 4.5:1 on every surface step including `--surface-3`, not only on `--bg`. Light `--surface-3` is `#e6e1d6`.
+- **Text-safe accents.** Accents are fills, strokes and glows. Text uses `--ember-text`, `--steel-text`, `--jade-text`, `--crimson-text`, `--molten-text`, `--teal-text`, `--amber-text`, `--ash-text`. In dark they equal the accent; in light they are darker (`#963a06`, `#285689`, `#07654a`, `#a81a2f`, `#734900`, `#086563`, `#734900`, `#565e6c`) so text on a tinted chip still reaches 4.5:1. `--ember-dim` is for fills and strokes only (4.2:1 as text on `--surface-1`).
+- **New tokens.** `--teal` (replay-measured), `--amber` (estimated), `--ash` and `--ash-line` (raw traces, dashed strokes), `--line-control` (borders of inputs and toggles, at least 3:1 on every surface, WCAG 1.4.11), `--on-ember`/`--on-crimson`/`--on-jade` (text on solid fills), `--primary-bg`/`--primary-fg` (the high-contrast primary button), `--scrim`, `--shadow-float`.
+- **Tone convention.** Every accent has `--x-tint` (13% mix) and `--x-edge` (55% mix). `data-tone="ember|molten|steel|jade|crimson|teal|amber|ash"` on any element exposes `--tone`, `--tone-text`, `--tone-tint`, `--tone-edge`. `--glow-ember` and `--glow-molten` are the only glows and belong to the active step or boundary.
+- Type sizes are `rem` (12/13/14/16/20/28/44/72 px at the default root). The presentation layout raises the root to 112.5%.
+
+### Components added beyond the mandatory list
+
+`Field` and `Switch` (labelled form wiring, native `role="switch"`), `Page` / `PageHeader` / `Section` (every page leads with the question it answers), `Summary` (the `<details>` + table equivalent of any visualization), `StatusChip` (Reflex lifecycle), `VerificationChip`, `RoleBadge`, `Avatar`, `ButtonLink`, `Popover` (interactive or "toggletip" mode). `Provenance` draws the five kinds differently as well as in colour: measured = jade fill with a check, replay-measured = teal double rule, synthetic = steel solid outline, simulated = ash dashed, estimated = amber hatched.
+
+### Layout and behaviour decisions
+
+- The shell is a fixed-viewport grid (`100dvh`); `<main>` scrolls. The presenter bar is a grid row, not an overlay, so it never covers content. Toasts sit under the Forge strip, never over the presenter controls.
+- Forge strip: at widths below 1700px the identity menu shows the avatar only, and when the pipeline is squeezed the stage numbers drop before the stage names. Below 768px the strip is two rows (brand + chips, then the pipeline with only the active label) and the rail becomes a bottom tab bar with four primary views plus "More".
+- The Forge strip stage is resolved page override, then guided-demo step, then route (`src/stages.ts`), so the Escalate segment lights molten during the Token Firewall steps even though they share `/run` with execution.
+- Drawers are modal by default (focus trap, inert page, Escape, focus returns to the opener) and become a bottom sheet below 768px; `modal={false}` docks an inspector beside the content.
+- `/governance` uses `?tab=audit|approvals|roles|safety`. The roles matrix is a copy of the server's table (`apps/web/src/auth/rbac.ts`); the server remains the only enforcement.

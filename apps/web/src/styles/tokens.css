@@ -1,0 +1,261 @@
+/*
+ * FORGED INTELLIGENCE design tokens (see docs/DESIGN_SYSTEM.md).
+ * Dark is the default theme and light is first class: both pass WCAG AA for text and UI components.
+ *
+ * Accent convention
+ *   --ember, --steel, ...         fills, strokes, glows (never rely on them for small text in light theme)
+ *   --ember-text, --steel-text .. text-safe variants (identical to the accent in dark theme)
+ *   --ember-tint / --ember-edge   soft background / border mixes derived from the accent
+ * Tone convention: set data-tone="ember|molten|steel|jade|crimson|teal|amber|ash" on any element and use
+ * var(--tone), var(--tone-text), var(--tone-tint), var(--tone-edge) (see the bottom of this file).
+ */
+
+:root {
+  /* typography */
+  --font-display:
+    'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-ui:
+    'Geist Variable', 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:
+    'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --fs-micro: 0.6875rem; /* 11px: uppercase micro-labels, never smaller */
+  --fs-xs: 0.75rem; /* 12px */
+  --fs-sm: 0.8125rem; /* 13px */
+  --fs-base: 0.875rem; /* 14px */
+  --fs-md: 1rem; /* 16px */
+  --fs-lg: 1.25rem; /* 20px */
+  --fs-xl: 1.75rem; /* 28px */
+  --fs-2xl: 2.75rem; /* 44px */
+  --fs-3xl: 4.5rem; /* 72px */
+  --lh-tight: 1.08;
+  --lh-snug: 1.25;
+  --lh-base: 1.5;
+  --tracking-display: -0.02em;
+  --tracking-label: 0.08em;
+
+  /* spacing (4px base) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* radii */
+  --r-ctl: 4px;
+  --r-panel: 8px;
+  --r-pill: 999px;
+
+  /* layout */
+  --rail-w: 208px;
+  --strip-h: 52px;
+  --tabbar-h: 60px;
+  --page-pad: var(--sp-6);
+  --page-max: 1600px;
+  --drawer-w: 460px;
+  --control-h: 34px;
+
+  /* motion: transitions only explain state changes (heat, cooling, cracks) */
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 480ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* layers */
+  --z-sticky: 10;
+  --z-rail: 20;
+  --z-strip: 30;
+  --z-presenter: 40;
+  --z-popover: 60;
+  --z-drawer: 70;
+  --z-toast: 90;
+  --z-skip: 100;
+
+  /* dark theme (default) */
+  --bg: #0b0c0f;
+  --bg-raised: #121317;
+  --surface-1: #17191f;
+  --surface-2: #1e2027;
+  --surface-3: #272a33;
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --line-control: #737888; /* borders of inputs and toggles: >= 3:1 on every surface */
+  --text: #ece9e3;
+  --text-dim: #a9a7a1;
+  --text-faint: #94928c;
+  --text-inverse: #0b0c0f;
+
+  --ember: #ff7a2e;
+  --ember-dim: #c95d1f; /* fills and strokes only */
+  --molten: #ffd08a;
+  --steel: #8fb4de;
+  --jade: #47d6a2;
+  --crimson: #ff5468;
+  --focus: #7cc4ff;
+  --teal: #3dd6d0;
+  --amber: #f2b84b;
+  --ash: #8b93a1;
+  --ash-line: #565d6b;
+
+  --ember-text: var(--ember);
+  --molten-text: var(--molten);
+  --steel-text: var(--steel);
+  --jade-text: var(--jade);
+  --crimson-text: var(--crimson);
+  --teal-text: var(--teal);
+  --amber-text: var(--amber);
+  --ash-text: var(--ash);
+
+  --on-ember: #14100c;
+  --on-crimson: #14070a;
+  --on-jade: #04140e;
+  --primary-bg: var(--text);
+  --primary-fg: var(--bg);
+
+  --scrim: rgb(4 5 7 / 0.64);
+  --shadow-float: 0 12px 40px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.35);
+  --hatch: rgb(255 255 255 / 0.22);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f5f2ec;
+  --bg-raised: #fbf9f5;
+  --surface-1: #ffffff;
+  --surface-2: #f0ece4;
+  --surface-3: #e6e1d6;
+  --line: rgb(27 26 24 / 0.1);
+  --line-strong: rgb(27 26 24 / 0.2);
+  --line-control: #7d7a73;
+  --text: #1b1a18;
+  --text-dim: #55524c;
+  --text-faint: #67635b;
+  --text-inverse: #f5f2ec;
+
+  --ember: #b34a0c;
+  --ember-dim: #d9722f;
+  --molten: #8a5a00;
+  --steel: #2c5f96;
+  --jade: #0a7a54;
+  --crimson: #c4223a;
+  --focus: #0b63c4;
+  --teal: #0a706e;
+  --amber: #8a5a00;
+  --ash: #5f6877;
+  --ash-line: #a4a9b3;
+
+  --ember-text: #963a06;
+  --molten-text: #734900;
+  --steel-text: #285689;
+  --jade-text: #07654a;
+  --crimson-text: #a81a2f;
+  --teal-text: #086563;
+  --amber-text: #734900;
+  --ash-text: #565e6c;
+
+  --on-ember: #ffffff;
+  --on-crimson: #ffffff;
+  --on-jade: #ffffff;
+
+  --scrim: rgb(27 26 24 / 0.38);
+  --shadow-float: 0 12px 36px rgb(27 26 24 / 0.18), 0 2px 8px rgb(27 26 24 / 0.1);
+  --hatch: rgb(27 26 24 / 0.28);
+  color-scheme: light;
+}
+
+/* Derived mixes: resolved on the root so they follow whichever theme is active. */
+:root {
+  --ember-tint: color-mix(in srgb, var(--ember) 13%, transparent);
+  --molten-tint: color-mix(in srgb, var(--molten) 14%, transparent);
+  --steel-tint: color-mix(in srgb, var(--steel) 13%, transparent);
+  --jade-tint: color-mix(in srgb, var(--jade) 13%, transparent);
+  --crimson-tint: color-mix(in srgb, var(--crimson) 13%, transparent);
+  --teal-tint: color-mix(in srgb, var(--teal) 13%, transparent);
+  --amber-tint: color-mix(in srgb, var(--amber) 14%, transparent);
+  --ash-tint: color-mix(in srgb, var(--ash) 14%, transparent);
+
+  --ember-edge: color-mix(in srgb, var(--ember) 55%, transparent);
+  --molten-edge: color-mix(in srgb, var(--molten) 60%, transparent);
+  --steel-edge: color-mix(in srgb, var(--steel) 55%, transparent);
+  --jade-edge: color-mix(in srgb, var(--jade) 55%, transparent);
+  --crimson-edge: color-mix(in srgb, var(--crimson) 55%, transparent);
+  --teal-edge: color-mix(in srgb, var(--teal) 55%, transparent);
+  --amber-edge: color-mix(in srgb, var(--amber) 55%, transparent);
+  --ash-edge: color-mix(in srgb, var(--ash) 50%, transparent);
+
+  /* the only glows: heat (ember) and the uncertainty boundary (molten) */
+  --glow-ember: 0 0 14px -2px color-mix(in srgb, var(--ember) 70%, transparent);
+  --glow-molten: 0 0 16px -1px color-mix(in srgb, var(--molten) 75%, transparent);
+}
+
+[data-tone='ember'] {
+  --tone: var(--ember);
+  --tone-text: var(--ember-text);
+  --tone-tint: var(--ember-tint);
+  --tone-edge: var(--ember-edge);
+}
+[data-tone='molten'] {
+  --tone: var(--molten);
+  --tone-text: var(--molten-text);
+  --tone-tint: var(--molten-tint);
+  --tone-edge: var(--molten-edge);
+}
+[data-tone='steel'] {
+  --tone: var(--steel);
+  --tone-text: var(--steel-text);
+  --tone-tint: var(--steel-tint);
+  --tone-edge: var(--steel-edge);
+}
+[data-tone='jade'] {
+  --tone: var(--jade);
+  --tone-text: var(--jade-text);
+  --tone-tint: var(--jade-tint);
+  --tone-edge: var(--jade-edge);
+}
+[data-tone='crimson'] {
+  --tone: var(--crimson);
+  --tone-text: var(--crimson-text);
+  --tone-tint: var(--crimson-tint);
+  --tone-edge: var(--crimson-edge);
+}
+[data-tone='teal'] {
+  --tone: var(--teal);
+  --tone-text: var(--teal-text);
+  --tone-tint: var(--teal-tint);
+  --tone-edge: var(--teal-edge);
+}
+[data-tone='amber'] {
+  --tone: var(--amber);
+  --tone-text: var(--amber-text);
+  --tone-tint: var(--amber-tint);
+  --tone-edge: var(--amber-edge);
+}
+[data-tone='ash'],
+[data-tone='neutral'] {
+  --tone: var(--ash);
+  --tone-text: var(--ash-text);
+  --tone-tint: var(--ash-tint);
+  --tone-edge: var(--ash-edge);
+}
+
+/* Presentation layout: hides chrome (see shell.css) and enlarges type. */
+:root[data-presentation='on'] {
+  font-size: 112.5%;
+}
+
+@media (max-width: 1279px) {
+  :root {
+    --rail-w: 64px;
+    --page-pad: var(--sp-5);
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --rail-w: 0px;
+    --page-pad: var(--sp-4);
+    --strip-h: 78px;
+  }
+}

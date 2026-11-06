@@ -1,0 +1,201 @@
+/* Overlays: tooltip, popover, drawer, toast. */
+
+.bf-tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-popover);
+  max-width: 320px;
+  padding: 8px 10px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.bf-popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-popover);
+  min-width: 220px;
+  max-width: min(380px, calc(100vw - 16px));
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.bf-popover:focus {
+  outline: none;
+}
+
+/* ---- Drawer ---- */
+.bf-drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  pointer-events: none;
+}
+.bf-drawer-layer--modal {
+  pointer-events: auto;
+}
+.bf-drawer__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  animation: bf-fade-in var(--dur) var(--ease);
+}
+.bf-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--drawer-w), 100vw);
+  background: var(--bg-raised);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: bf-slide-in var(--dur) var(--ease);
+}
+.bf-drawer-layer:not(.bf-drawer-layer--modal) .bf-drawer {
+  top: var(--strip-h);
+}
+.bf-drawer:focus {
+  outline: none;
+}
+.bf-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+.bf-drawer__titles {
+  min-width: 0;
+}
+.bf-drawer__title {
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+.bf-drawer__desc {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.bf-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-4);
+}
+.bf-drawer__foot {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 767px) {
+  .bf-drawer,
+  .bf-drawer-layer:not(.bf-drawer-layer--modal) .bf-drawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 88dvh;
+    border-left: 0;
+    border-top: 1px solid var(--line-strong);
+    border-radius: 14px 14px 0 0;
+    animation-name: bf-slide-up;
+  }
+}
+
+/* ---- Toasts: top-right, below the Forge strip, so they never cover the presenter controls ---- */
+.bf-toasts {
+  position: fixed;
+  top: calc(var(--strip-h) + var(--sp-3));
+  right: var(--sp-4);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(380px, calc(100vw - 2 * var(--sp-4)));
+  pointer-events: none;
+}
+.bf-toasts__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.bf-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--tone);
+  border-radius: 6px;
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: bf-fade-in var(--dur) var(--ease);
+}
+.bf-toast__icon {
+  margin-top: 1px;
+  color: var(--tone-text);
+}
+.bf-toast__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.bf-toast__title {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+.bf-toast__desc {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+@keyframes bf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes bf-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bf-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

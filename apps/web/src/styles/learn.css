@@ -1,0 +1,599 @@
+/* Learn: matcher quality, the families map, the inspector and the Reflex DNA section. */
+
+.learn-h2 {
+  font-size: var(--fs-lg);
+}
+.learn-sub {
+  margin-top: 2px;
+  max-width: 78ch;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.learn-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  max-width: 90ch;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.learn-note svg {
+  flex: none;
+  margin-top: 3px;
+}
+.learn-note--ok {
+  color: var(--jade-text);
+}
+.learn-note--warn {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px dashed var(--amber-edge);
+  border-radius: var(--r-panel);
+  background: var(--amber-tint);
+  color: var(--text);
+}
+.learn-note--bad {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--crimson-edge);
+  border-radius: var(--r-panel);
+  background: var(--crimson-tint);
+  color: var(--text);
+}
+
+.learn-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+.learn-loading__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: var(--sp-5);
+}
+
+/* ---- matcher quality ---- */
+.learn-matcher {
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+}
+.learn-matcher__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+}
+.learn-matcher__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--sp-4);
+}
+.learn-matcher__metrics > * {
+  min-width: 0;
+  padding: 0 var(--sp-5);
+  border-left: 1px solid var(--line);
+}
+.learn-matcher__metrics > *:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.learn-matcher__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.learn-matcher > .learn-note {
+  margin-top: var(--sp-4);
+}
+.learn-matcher__misses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4) var(--sp-6);
+  margin-top: var(--sp-4);
+  font-size: var(--fs-sm);
+}
+.learn-matcher__misses ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* ---- families ---- */
+.learn-families,
+.learn-dna {
+  margin-top: var(--sp-6);
+}
+.learn-families__head {
+  margin-bottom: var(--sp-4);
+}
+.learn-families > .learn-note {
+  margin-bottom: var(--sp-4);
+}
+.learn-families__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  gap: var(--sp-5);
+  align-items: start;
+}
+.learn-families__map {
+  min-width: 0;
+}
+.learn-families__inspector {
+  min-width: 0;
+  padding: var(--sp-4);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+}
+
+.learn-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.learn-map__scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+}
+.learn-map__svg {
+  display: block;
+  max-width: none;
+  margin-inline: auto;
+}
+.learn-map__svg text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  fill: var(--text-dim);
+}
+
+.learn-disc__ring {
+  fill: var(--steel-tint);
+  fill-opacity: 0.5;
+  stroke: var(--steel-edge);
+  stroke-width: 1;
+}
+.learn-disc[data-selected='true'] .learn-disc__ring {
+  fill-opacity: 0.85;
+  stroke: var(--steel);
+  stroke-width: 1.5;
+}
+.learn-disc__core {
+  fill: var(--steel);
+  opacity: 0.55;
+}
+.learn-disc__label {
+  cursor: pointer;
+  outline: none;
+}
+.learn-disc__hit {
+  fill: transparent;
+}
+.learn-disc__label:hover .learn-disc__hit {
+  fill: var(--steel-tint);
+}
+.learn-disc__label:focus-visible .learn-disc__hit {
+  stroke: var(--focus);
+  stroke-width: 2;
+}
+.learn-map__svg .learn-disc__name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  fill: var(--text);
+}
+
+.learn-zone__box {
+  fill: none;
+  stroke: var(--ash-line);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 5;
+}
+.learn-map__svg .learn-zone__label,
+.learn-map__svg .learn-zone__sub {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--text-faint);
+}
+
+.learn-link {
+  stroke: var(--steel);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.learn-link--selected {
+  stroke: var(--ember);
+  stroke-opacity: 0.85;
+}
+
+.learn-node {
+  cursor: pointer;
+  outline: none;
+  transition: transform var(--dur-slow) var(--ease);
+}
+.learn-node__body {
+  stroke-width: 1.5;
+  transition:
+    fill var(--dur) var(--ease),
+    stroke var(--dur) var(--ease);
+}
+.learn-node__focus {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2;
+}
+.learn-node:focus-visible .learn-node__focus {
+  stroke: var(--focus);
+}
+.learn-map__svg .learn-node__label,
+.learn-node .learn-node__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+.learn-map__svg .learn-node__sub,
+.learn-map__svg .learn-node__score {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-anchor: middle;
+}
+.learn-map__svg .learn-node__score {
+  fill: var(--ember-text);
+}
+.learn-node[data-kind='learned'] .learn-node__body {
+  fill: var(--steel);
+  stroke: var(--steel);
+}
+.learn-node[data-kind='learned'] .learn-node__label {
+  fill: var(--text-inverse);
+}
+.learn-node[data-kind='matched'] .learn-node__body {
+  fill: var(--bg-raised);
+  stroke: var(--steel);
+}
+.learn-node[data-kind='matched'] .learn-node__label {
+  fill: var(--steel-text);
+}
+.learn-node[data-kind='unmatched'] .learn-node__body,
+.learn-node[data-kind='noise'] .learn-node__body {
+  fill: var(--bg-raised);
+  stroke: var(--ash);
+  stroke-dasharray: 3 3;
+}
+.learn-node[data-kind='unmatched'] .learn-node__label,
+.learn-node[data-kind='noise'] .learn-node__label {
+  fill: var(--ash-text);
+}
+.learn-node[data-neighbour='true'] .learn-node__body {
+  stroke: var(--ember);
+  stroke-width: 2;
+}
+.learn-node[data-selected='true'] .learn-node__body {
+  stroke: var(--ember);
+  stroke-width: 3;
+}
+.learn-node:hover .learn-node__body {
+  stroke-width: 2.5;
+}
+
+.learn-map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.learn-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.learn-map__legend .learn-node {
+  cursor: default;
+  transition: none;
+}
+.learn-map__legend .learn-node .learn-node__body {
+  stroke-width: 1.5;
+}
+.learn-legend__note {
+  flex: 1 1 260px;
+  color: var(--text-faint);
+}
+
+/* ---- inspector ---- */
+.learn-ins {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.learn-ins > * {
+  max-width: 100%;
+}
+.learn-ins section,
+.learn-ins > div {
+  width: 100%;
+}
+.learn-ins__title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.learn-ins__sub {
+  margin-bottom: var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.learn-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px var(--sp-4);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.learn-facts dt {
+  color: var(--text-faint);
+}
+.learn-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.learn-gates,
+.learn-rules,
+.learn-reasons,
+.learn-neighbours,
+.learn-variants,
+.learn-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.learn-gates li,
+.learn-rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.learn-gates li svg,
+.learn-rules li svg {
+  flex: none;
+  margin-top: 2px;
+}
+.learn-gates li[data-passed='true'] svg,
+.learn-rules li[data-ok='true'] svg {
+  color: var(--jade-text);
+}
+.learn-gates li[data-passed='false'] svg,
+.learn-rules li[data-ok='false'] svg {
+  color: var(--crimson-text);
+}
+.learn-reasons {
+  color: var(--text-dim);
+}
+.learn-neighbour {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: baseline;
+  width: 100%;
+  padding: 4px 6px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-ctl);
+  text-align: start;
+  font-size: var(--fs-sm);
+}
+.learn-neighbour:hover {
+  background: var(--surface-2);
+}
+.learn-variants li {
+  overflow-wrap: anywhere;
+}
+.learn-versions li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.learn-versions__link {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 550;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.learn-versions__link:hover {
+  text-decoration: underline;
+}
+
+/* ---- Reflex DNA section ---- */
+.learn-dna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.learn-dna__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-5);
+}
+.learn-dna__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.learn-dna__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
+}
+.learn-dna__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-sm);
+}
+.learn-dna__versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.learn-vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px 10px 4px 12px;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+}
+.learn-vchip:hover {
+  background: var(--surface-2);
+}
+.learn-vchip[aria-pressed='true'] {
+  background: var(--steel-tint);
+  border-color: var(--steel-edge);
+}
+.learn-dna__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 1279px) {
+  .learn-families__body,
+  .learn-loading__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 1100px) {
+  .learn-matcher__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--sp-4);
+  }
+  .learn-matcher__metrics > *:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+@media (max-width: 560px) {
+  .learn-matcher__metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .learn-matcher__metrics > * {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+/* ---- compact inspector table ---- */
+.learn-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.learn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+}
+.learn-table th,
+.learn-table td {
+  padding: 5px 8px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+.learn-table thead th {
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.learn-table tbody th {
+  color: var(--text-dim);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.learn-table tbody tr:last-child th,
+.learn-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.learn-table__end {
+  text-align: end !important;
+}
+.learn-families__inspector {
+  position: sticky;
+  top: var(--sp-3);
+  max-height: calc(100dvh - var(--strip-h) - var(--sp-5));
+  overflow-y: auto;
+}
+@media (max-width: 1279px) {
+  .learn-families__inspector {
+    position: static;
+    max-height: none;
+  }
+}
+
+.bf-empty + .learn-matcher {
+  margin-top: var(--sp-5);
+}
+
+/* the map column stretches to the inspector's height and centres the drawing in it */
+.learn-families__body {
+  align-items: stretch;
+}
+.learn-families__inspector {
+  align-self: start;
+}
+.learn-families__map,
+.learn-map {
+  display: flex;
+  flex-direction: column;
+}
+.learn-map {
+  flex: 1 1 auto;
+}
+.learn-map__scroll {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-height: 380px;
+}
+.learn-map__svg {
+  flex: none;
+}
+@media (max-width: 1279px) {
+  .learn-map__scroll {
+    min-height: 0;
+  }
+}

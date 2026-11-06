@@ -1,0 +1,189 @@
+/* Feedback: skeleton, spinner, empty and error states, and the logo. */
+
+/* ---- Skeleton ---- */
+.bf-skeleton {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 4px;
+  background-color: var(--surface-2);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    color-mix(in srgb, var(--text) 7%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: bf-shimmer 1.8s ease-in-out infinite;
+}
+.bf-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+@keyframes bf-shimmer {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+/* ---- Spinner ---- */
+.bf-spinner {
+  flex: none;
+  animation: bf-spin 0.85s linear infinite;
+}
+.bf-spinner__track {
+  stroke: var(--line-strong);
+}
+.bf-spinner__arc {
+  stroke: currentColor;
+}
+@keyframes bf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Empty state ---- */
+.bf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-5);
+  border: 1px dashed var(--ash-line);
+  border-radius: var(--r-panel);
+  text-align: center;
+}
+.bf-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px dashed var(--ash-line);
+  border-radius: 50%;
+  color: var(--ash-text);
+}
+.bf-empty__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 56ch;
+}
+.bf-empty__title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text);
+}
+.bf-empty__desc {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.bf-empty--compact {
+  flex-direction: row;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4);
+  border: 0;
+  text-align: left;
+}
+.bf-empty--compact .bf-empty__icon {
+  width: 32px;
+  height: 32px;
+}
+
+/* ---- Error state ---- */
+.bf-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--crimson-tint);
+  border: 1px solid var(--crimson-edge);
+  border-radius: var(--r-panel);
+}
+.bf-error--compact {
+  padding: var(--sp-3);
+  border-width: 0;
+  border-radius: 0;
+}
+.bf-error__icon {
+  margin-top: 1px;
+  color: var(--crimson-text);
+}
+.bf-error__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.bf-error__title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+.bf-error__msg {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.bf-error__code {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+.bf-error__details {
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.bf-error__details pre {
+  max-height: 200px;
+  margin-top: 6px;
+  padding: var(--sp-2);
+  overflow: auto;
+  background: var(--bg-raised);
+  border-radius: var(--r-ctl);
+  white-space: pre-wrap;
+}
+.bf-error__retry {
+  flex: none;
+}
+
+/* ---- Logo ---- */
+.bf-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+.bf-logo__mark {
+  flex: none;
+  overflow: visible;
+}
+.bf-logo__body {
+  fill: var(--steel);
+}
+.bf-logo__face {
+  fill: var(--text);
+  opacity: 0.92;
+}
+.bf-logo__waist {
+  fill: color-mix(in srgb, var(--steel) 68%, var(--bg));
+}
+.bf-logo__spark {
+  fill: var(--molten);
+}
+.bf-logo__ember {
+  fill: var(--ember);
+}
+.bf-logo__word {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+}

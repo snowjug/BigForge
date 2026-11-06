@@ -1,0 +1,21 @@
+/* Small full-screen states used before the shell exists: session splash, route errors. */
+
+.bf-splash {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--sp-5);
+  min-height: 100dvh;
+  padding: var(--sp-5);
+  background: var(--bg);
+}
+.bf-splash__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.bf-splash__error {
+  width: min(520px, 100%);
+}

@@ -1,0 +1,401 @@
+/*
+ * Custom SVG charts (break-even, investment waterfall, agreement timeline, confidence gauge).
+ * Tokens only: accents are fills and strokes, `--x-text` carries text. SVGs are drawn at 1:1 pixels inside a
+ * horizontally scrolling box, so labels never shrink below 11px on small screens.
+ */
+
+.bf-chart {
+  min-width: 0;
+  max-width: 100%;
+}
+.bf-chart__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+.bf-chart__scroll:focus-visible {
+  outline-offset: 2px;
+}
+.bf-chart__svg {
+  display: block;
+  max-width: none;
+  overflow: visible;
+}
+
+.bf-chart__grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.bf-chart__axis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.bf-chart__tick {
+  fill: var(--text-dim);
+  font: 500 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.bf-chart__axis-title {
+  fill: var(--text-faint);
+  font: 500 11px/1 var(--font-ui);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+/* break-even */
+.bf-chart__line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bf-chart__line--baseline {
+  stroke: var(--ember);
+}
+.bf-chart__line--bigforge {
+  stroke: var(--steel);
+}
+.bf-chart__line--projected {
+  stroke-dasharray: 8 6;
+  stroke-width: 2;
+}
+.bf-chart__band {
+  stroke: none;
+}
+.bf-chart__hatch-line {
+  stroke: var(--amber);
+  stroke-width: 1.4;
+  opacity: 0.55;
+}
+.bf-chart__realized {
+  fill: var(--steel-tint);
+}
+.bf-chart__realized-label {
+  fill: var(--steel-text);
+  font: 500 11px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+}
+.bf-chart__interval {
+  stroke: var(--amber);
+  stroke-width: 5;
+  opacity: 0.85;
+}
+.bf-chart__interval-cap {
+  stroke: var(--amber-text);
+  stroke-width: 1.5;
+}
+.bf-chart__diamond {
+  fill: var(--surface-1);
+  stroke: var(--ember-text);
+  stroke-width: 1.75;
+}
+.bf-chart__flag-rule {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.bf-chart__crossing {
+  fill: var(--surface-1);
+  stroke: var(--text);
+  stroke-width: 2.5;
+}
+.bf-chart__flag {
+  fill: var(--text);
+  font: 600 12px/1 var(--font-ui);
+}
+.bf-chart__end {
+  font: 650 12px/1 var(--font-ui);
+}
+.bf-chart__end--baseline {
+  fill: var(--ember-text);
+}
+.bf-chart__end--bigforge {
+  fill: var(--steel-text);
+}
+.bf-chart__end-value {
+  fill: var(--text-dim);
+  font: 500 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* investment waterfall */
+.bf-wf__label {
+  fill: var(--text);
+  font: 500 13px/1 var(--font-ui);
+}
+.bf-wf__label--total {
+  font-weight: 650;
+}
+.bf-wf__sub {
+  fill: var(--text-faint);
+  font: 500 11px/1 var(--font-ui);
+}
+.bf-wf__value {
+  fill: var(--text);
+  font: 500 13px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.bf-wf__value--total {
+  font-weight: 650;
+}
+.bf-wf__bar {
+  stroke: none;
+}
+.bf-wf__bar--ember {
+  fill: var(--ember);
+}
+.bf-wf__bar--steel {
+  fill: var(--steel);
+}
+.bf-wf__bar--teal {
+  fill: var(--teal);
+}
+.bf-wf__bar--amber {
+  stroke: var(--amber);
+  stroke-width: 1.25;
+}
+.bf-wf__bar--total {
+  fill: var(--surface-3);
+  stroke: var(--text-dim);
+  stroke-width: 1.25;
+}
+.bf-wf__bar--excluded {
+  fill: none;
+  stroke: var(--ash);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+.bf-wf__hatch-bg {
+  fill: var(--amber-tint);
+}
+.bf-wf__connector {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+/* agreement timeline */
+.bf-tl__below {
+  fill: var(--crimson-tint);
+  opacity: 0.6;
+}
+.bf-tl__floor {
+  stroke: var(--amber);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 4;
+}
+.bf-tl__drop {
+  stroke: var(--ash);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+}
+.bf-tl__threshold {
+  fill: var(--amber-text);
+  font: 600 11px/1 var(--font-ui);
+}
+.bf-tl__marker {
+  stroke: var(--crimson);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 4;
+}
+.bf-tl__marker-label {
+  fill: var(--crimson-text);
+  font: 600 11px/1 var(--font-mono);
+}
+.bf-tl__historic {
+  stroke: var(--steel);
+  stroke-width: 1.25;
+  stroke-dasharray: 1 4;
+  stroke-linecap: round;
+}
+.bf-tl__line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bf-tl__line--shadow {
+  stroke: var(--steel);
+}
+.bf-tl__line--canary {
+  stroke: var(--crimson);
+}
+.bf-tl__dot {
+  stroke: var(--surface-1);
+  stroke-width: 1.5;
+}
+.bf-tl__dot--shadow {
+  fill: var(--steel);
+}
+.bf-tl__dot--canary {
+  fill: var(--crimson);
+}
+.bf-tl__dot--miss {
+  fill: var(--surface-1);
+  stroke: var(--crimson);
+  stroke-width: 2.25;
+}
+.bf-tl__ibeam,
+.bf-tl__drop-arrow {
+  stroke: var(--crimson-text);
+  stroke-width: 1.5;
+}
+.bf-tl__drop-head {
+  fill: var(--crimson-text);
+}
+.bf-tl__annot {
+  fill: var(--crimson-text);
+  font: 600 12px/1 var(--font-ui);
+}
+.bf-tl__annot--faint {
+  fill: var(--text-dim);
+  font: 500 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.bf-tl__tape {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bf-tl__tape--agree {
+  stroke: var(--jade);
+}
+.bf-tl__tape--miss {
+  stroke: var(--crimson);
+}
+.bf-tl__bracket {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+.bf-tl__group {
+  fill: var(--text-dim);
+  font: 500 12px/1 var(--font-ui);
+}
+
+/* confidence gauge */
+.bf-cg {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  min-width: 0;
+}
+.bf-cg__svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.bf-cg__track {
+  fill: none;
+  stroke: var(--surface-3);
+}
+.bf-cg__fill {
+  fill: none;
+  stroke: var(--tone, var(--steel));
+}
+.bf-cg__lost {
+  fill: none;
+  stroke: var(--crimson);
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+.bf-cg__interval {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.bf-cg__interval-key {
+  stroke: var(--text-faint);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.bf-cg__watch {
+  stroke: var(--amber);
+  stroke-width: 2.25;
+  stroke-dasharray: 3 2;
+}
+.bf-cg__before {
+  stroke: var(--text);
+  stroke-width: 2.5;
+}
+.bf-cg__was {
+  fill: var(--text-dim);
+  font: 500 12px/1 var(--font-ui);
+}
+.bf-cg__value {
+  fill: var(--text);
+  font: 650 44px/1 var(--font-display);
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+}
+.bf-cg__caption {
+  fill: var(--text-faint);
+  font: 500 11px/1 var(--font-ui);
+  letter-spacing: var(--tracking-label);
+}
+.bf-cg__delta {
+  fill: var(--crimson-text);
+  font: 600 13px/1 var(--font-ui);
+}
+.bf-cg__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.bf-cg__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* segmented choice */
+.bf-seg {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-ctl);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.bf-seg__item {
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--line-control);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.bf-seg__item:first-child {
+  border-left: 0;
+}
+.bf-seg__item:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.bf-seg__item[aria-checked='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--steel);
+}
+.bf-seg__item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bf-seg__item:focus-visible {
+  outline-offset: -2px;
+  border-radius: 0;
+}

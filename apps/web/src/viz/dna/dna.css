@@ -1,0 +1,402 @@
+/*
+ * Reflex DNA: the compile alignment as a genome strip (docs/DESIGN_SYSTEM.md, signature experience 5).
+ * Steel = forged, local work; hatched = variable or raw; crimson = excluded as unsafe; ember = still
+ * model-driven; molten = an uncertainty boundary; jade = verification. Every colour is a token.
+ */
+
+.dna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.dna__scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+}
+.dna__svg {
+  display: block;
+  max-width: none;
+  margin-inline: auto;
+  overflow: visible;
+  padding: var(--sp-4) 0 var(--sp-3);
+  box-sizing: content-box;
+}
+.dna__svg text {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  fill: var(--text-dim);
+}
+.dna__svg .mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ---- hatch patterns ---- */
+.dna__hatch-line {
+  stroke-width: 1.4;
+}
+.dna__hatch-line[data-tone='steel'] {
+  stroke: var(--steel);
+}
+.dna__hatch-line[data-tone='crimson'] {
+  stroke: var(--crimson);
+}
+.dna__hatch-line[data-tone='ember'] {
+  stroke: var(--ember);
+}
+
+/* ---- row labels ---- */
+.dna__rowlabel .dna__rowid {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+.dna__rowlabel .dna__rowvariant {
+  fill: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ---- columns: header label, conservation bar ---- */
+.dna__col {
+  cursor: pointer;
+  outline: none;
+  transition: opacity var(--dur) var(--ease);
+}
+.dna__col-hit {
+  fill: transparent;
+}
+.dna__col:hover .dna__col-hit,
+.dna__col[data-selected='true'] .dna__col-hit {
+  fill: var(--steel-tint);
+}
+.dna__col:focus-visible .dna__col-focus {
+  stroke: var(--focus);
+}
+.dna__col-focus {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2;
+}
+.dna__collabel {
+  fill: var(--text) !important;
+}
+.dna__col[data-status='excluded'] .dna__collabel {
+  fill: var(--crimson-text) !important;
+}
+.dna__col[data-status='uncovered'] .dna__collabel {
+  fill: var(--ember-text) !important;
+}
+.dna__col[data-class='variable'][data-status='compiled'] .dna__collabel {
+  fill: var(--text-dim) !important;
+}
+.dna__track {
+  fill: var(--surface-2);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.dna__bar {
+  stroke-width: 1;
+}
+.dna__bar[data-class='invariant'] {
+  fill: var(--steel);
+  stroke: var(--steel);
+}
+.dna__bar[data-class='common'] {
+  fill: var(--steel);
+  fill-opacity: 0.55;
+  stroke: var(--steel);
+}
+.dna__bar[data-class='variable'] {
+  stroke: var(--steel);
+}
+.dna__bar[data-status='excluded'] {
+  stroke: var(--crimson);
+}
+.dna__bar[data-status='uncovered'] {
+  stroke: var(--ember);
+}
+
+/* ---- alignment cells ---- */
+.dna__cell {
+  transition: opacity var(--dur) var(--ease);
+}
+.dna__cell[data-present='true'] {
+  fill: var(--steel);
+}
+.dna__cell[data-present='true'][data-class='variable'] {
+  fill-opacity: 0.62;
+}
+.dna__cell[data-present='true'][data-status='excluded'] {
+  fill: var(--crimson);
+  fill-opacity: 0.82;
+}
+.dna__cell[data-present='true'][data-status='uncovered'] {
+  fill: var(--ember);
+}
+.dna__cell[data-present='false'] {
+  fill: none;
+  stroke: var(--ash-line);
+  stroke-width: 1;
+  stroke-dasharray: 1.5 3.5;
+  stroke-linecap: round;
+}
+.dna__count {
+  fill: var(--text-inverse) !important;
+  font-family: var(--font-mono);
+  font-size: 11px !important;
+  font-weight: 600;
+  pointer-events: none;
+}
+.dna__rowband {
+  fill: var(--line);
+  opacity: 0.35;
+}
+
+/* ---- ribbons ---- */
+.dna__ribbon {
+  fill: none;
+  stroke: var(--steel);
+  stroke-opacity: 0.38;
+  stroke-linecap: round;
+  transition:
+    stroke-opacity var(--dur) var(--ease),
+    stroke-width var(--dur) var(--ease);
+}
+.dna__ribbon[data-status='excluded'] {
+  stroke: var(--crimson);
+}
+.dna[data-has-selection='true'] .dna__ribbon {
+  stroke-opacity: 0.1;
+}
+.dna[data-has-selection='true'] .dna__ribbon[data-active='true'] {
+  stroke-opacity: 0.95;
+  stroke-width: 2.2;
+}
+
+/* ---- strand: backbone, nodes, step bars ---- */
+.dna__backbone {
+  stroke: var(--ash-line);
+  stroke-width: 1.5;
+}
+.dna__step {
+  cursor: pointer;
+  outline: none;
+  transition: opacity var(--dur) var(--ease);
+}
+.dna__step-hit {
+  fill: transparent;
+}
+.dna__step:hover .dna__step-hit,
+.dna__step[data-selected='true'] .dna__step-hit {
+  fill: var(--steel-tint);
+}
+.dna__step-focus {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2;
+}
+.dna__step:focus-visible .dna__step-focus {
+  stroke: var(--focus);
+}
+.dna__node {
+  fill: var(--bg-raised);
+  stroke: var(--steel);
+  stroke-width: 1.6;
+}
+.dna__step[data-kind='boundary'] .dna__node {
+  stroke: var(--molten);
+}
+.dna__step[data-kind='verification'] .dna__node {
+  stroke: var(--jade);
+}
+.dna__stepbar {
+  fill: var(--steel);
+  stroke: var(--steel);
+  stroke-width: 1.5;
+}
+.dna__step[data-kind='validation'] .dna__stepbar {
+  fill: var(--steel-tint);
+}
+.dna__step[data-kind='boundary'] .dna__stepbar {
+  fill: var(--molten);
+  stroke: var(--molten);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--molten) 70%, transparent));
+}
+.dna__step[data-kind='verification'] .dna__stepbar {
+  fill: var(--jade);
+  stroke: var(--jade);
+}
+.dna__stepbar[data-empty='true'] {
+  fill-opacity: 0.4;
+  stroke-width: 1;
+}
+.dna__notch {
+  fill: var(--ember);
+}
+.dna__tokens {
+  fill: var(--text) !important;
+  font-family: var(--font-mono);
+  font-size: 11px !important;
+  text-anchor: middle;
+}
+.dna__tokens[data-zero='true'] {
+  fill: var(--text-faint) !important;
+}
+.dna__steplabel {
+  fill: var(--text) !important;
+  font-family: var(--font-mono);
+  font-size: 11px !important;
+}
+.dna__axis {
+  fill: var(--text-faint) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* dim everything unrelated to the selection */
+.dna[data-has-selection='true'] .dna__col:not([data-related='true']),
+.dna[data-has-selection='true'] .dna__step:not([data-related='true']) {
+  opacity: 0.4;
+}
+.dna[data-has-selection='true'] .dna__cell:not([data-related='true']) {
+  opacity: 0.35;
+}
+
+/* ---- legend ---- */
+.dna__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.dna__legend-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+}
+.dna__legend-title {
+  margin-right: var(--sp-1);
+}
+.dna__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dna__legend-item svg {
+  flex: none;
+}
+
+/* ---- inspector under the strip ---- */
+.dna__inspector {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+.dna__inspector h3 {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.dna__facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px var(--sp-4);
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+}
+.dna__facts dt {
+  color: var(--text-faint);
+}
+.dna__facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dna__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dna__note {
+  margin-top: var(--sp-3);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  max-width: 68ch;
+}
+.dna__note[data-tone='crimson'] {
+  color: var(--crimson-text);
+}
+.dna__alts {
+  margin-top: var(--sp-3);
+}
+.dna__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+}
+.dna__stats div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.dna__stats dt {
+  color: var(--text-faint);
+  order: 2;
+}
+.dna__stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.dna__trace-list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px var(--sp-3);
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-xs);
+}
+.dna__trace-list dt {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+.dna__trace-list dd {
+  margin: 0;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.dna__trace-list dd[data-absent='true'] {
+  color: var(--text-faint);
+}
+
+@media (max-width: 900px) {
+  .dna__inspector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (forced-colors: active) {
+  .dna__cell[data-present='true'],
+  .dna__bar,
+  .dna__stepbar {
+    forced-color-adjust: none;
+  }
+}

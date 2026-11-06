@@ -1,0 +1,27 @@
+/* PageStub: the placeholder every unbuilt page renders. */
+
+.bf-stub {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+.bf-stub__brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin: 0;
+}
+.bf-stub__brief dt {
+  margin-bottom: 2px;
+}
+.bf-stub__brief dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+@media (max-width: 899px) {
+  .bf-stub {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

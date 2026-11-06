@@ -1,0 +1,265 @@
+/* Guided demo: presenter bar, demo-target highlight, presentation layout. */
+
+.bf-presenter {
+  position: relative;
+  z-index: var(--z-presenter);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5) var(--sp-3);
+  background: var(--bg-raised);
+  border-top: 1px solid var(--line-strong);
+  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.28);
+}
+:root[data-theme='light'] .bf-presenter {
+  box-shadow: 0 -8px 24px rgb(27 26 24 / 0.1);
+}
+
+/* scene progress rail: one segment per scene, one pip per step */
+.bf-scenes {
+  display: flex;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.bf-scene {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bf-scene__label {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bf-scene__label:hover .micro {
+  color: var(--text);
+}
+.bf-scene__label:disabled {
+  cursor: progress;
+}
+.bf-scene__pips {
+  display: flex;
+  gap: 3px;
+}
+.bf-pip {
+  flex: 1 1 0;
+  height: 10px;
+  min-width: 4px;
+  padding: 0;
+  background: transparent;
+  border: 1px dashed var(--ash-line);
+  border-radius: 2px;
+  transition:
+    background-color var(--dur-slow) var(--ease),
+    border-color var(--dur-slow) var(--ease),
+    box-shadow var(--dur-slow) var(--ease);
+}
+.bf-pip:hover:not(:disabled) {
+  border-color: var(--text-dim);
+}
+.bf-pip[data-state='done'] {
+  background: var(--steel);
+  border: 1px solid var(--steel);
+}
+.bf-pip[data-state='current'] {
+  background: var(--ember);
+  border: 1px solid var(--ember);
+  box-shadow: var(--glow-ember);
+}
+.bf-pip:disabled {
+  cursor: progress;
+}
+
+.bf-presenter__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-5);
+}
+.bf-presenter__copy {
+  min-width: 0;
+}
+.bf-presenter__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.bf-presenter__title {
+  margin-top: 2px;
+  font-size: var(--fs-lg);
+  line-height: 1.2;
+}
+.bf-presenter__narration {
+  margin-top: 4px;
+  max-width: 96ch;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.bf-presenter__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+.bf-presenter__controls .bf-kbd {
+  margin-left: 2px;
+}
+.bf-presenter__divider {
+  width: 1px;
+  height: 22px;
+  background: var(--line-strong);
+}
+.bf-presenter__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  max-width: 720px;
+}
+.bf-presenter__progress .bf-meter {
+  flex: 0 1 320px;
+}
+.bf-presenter__working {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ember-text);
+  font-size: var(--fs-xs);
+}
+.bf-presenter__job-label {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.bf-presenter__note {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+.bf-presenter__rbac {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--molten-tint);
+  border: 1px solid var(--molten-edge);
+  border-radius: var(--r-panel);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.bf-presenter__rbac svg {
+  color: var(--molten-text);
+  flex: none;
+}
+.bf-presenter__rbac p {
+  flex: 1 1 280px;
+}
+.bf-presenter__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--crimson-tint);
+  border: 1px solid var(--crimson-edge);
+  border-radius: var(--r-panel);
+  font-size: var(--fs-sm);
+}
+.bf-presenter--collapsed {
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
+}
+.bf-presenter--collapsed .bf-presenter__title {
+  font-size: var(--fs-md);
+}
+
+@media (max-width: 1099px) {
+  .bf-presenter__main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+  .bf-presenter__controls {
+    justify-content: flex-start;
+  }
+  .bf-presenter__optional {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .bf-presenter {
+    padding: var(--sp-2) var(--sp-3);
+  }
+  .bf-presenter__title {
+    font-size: var(--fs-md);
+  }
+  .bf-presenter__narration {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .bf-scene__label {
+    display: none;
+  }
+  .bf-presenter__controls .bf-kbd,
+  .bf-presenter__divider {
+    display: none;
+  }
+}
+
+/* ---- confirmation popover and the Settings "reset" block ---- */
+.bf-confirm-pop {
+  width: min(340px, calc(100vw - 16px));
+}
+.bf-reset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface-1);
+}
+.bf-reset__text {
+  flex: 1 1 360px;
+  font-size: var(--fs-sm);
+}
+.bf-reset__title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+/* ---- demo target: the region the current step is about ---- */
+[data-demo-target] {
+  scroll-margin-block: 96px;
+  transition:
+    outline-color var(--dur-slow) var(--ease),
+    box-shadow var(--dur-slow) var(--ease);
+}
+[data-demo-active='true'] {
+  outline: 1.5px solid var(--ember-edge);
+  outline-offset: 6px;
+  border-radius: var(--r-panel);
+  box-shadow: var(--glow-ember);
+}
+
+/* ---- presentation layout: chrome hidden, larger type (root font-size is set in tokens.css) ---- */
+:root[data-presentation='on'] .bf-rail,
+:root[data-presentation='on'] .bf-strip,
+:root[data-presentation='on'] .bf-tabbar {
+  display: none;
+}
+:root[data-presentation='on'] .bf-main {
+  padding-block-start: var(--sp-4);
+}
