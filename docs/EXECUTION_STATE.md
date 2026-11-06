@@ -43,6 +43,7 @@ docker build -t bigforge . && docker run --rm -p 4747:4747 bigforge
 2. **Azure is authored, not deployed.** To go further: sign in with `az login`, run `scripts/azure-whatif.sh` (read-only), review it, then deploy through the guarded `deploy-azure.yml` workflow or `scripts/azure-deploy.sh` after configuring GitHub OIDC (see [AZURE.md](./AZURE.md), "Deploy only with explicit authorization" and "GitHub OIDC setup"). Record the outcome in the ledger. Nothing was created, changed or what-if'd in any subscription.
 3. **Live provider.** Azure OpenAI / OpenAI-compatible mode is validated against a local protocol stub only. A smoke test with a real endpoint is the next evidence to gather.
 4. **GitHub Actions.** `ci.yml` passed on GitHub for the delivery push (see the delivery notes below). `deploy-azure.yml` has never been run and is manual by design.
+5. **Vulnerability reporting.** Enable GitHub private vulnerability reporting (Settings → Code security) so the reporting section of [SECURITY.md](./SECURITY.md) has a private channel. It is off today. Dependabot security updates are also off.
 
 ## Known limitations
 

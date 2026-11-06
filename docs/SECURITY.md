@@ -2,6 +2,10 @@
 
 BigForge executes commands and learns from untrusted text (logs, repository files, tool output). This document states what is actually enforced, what is *not*, and how to read the claims.
 
+## Reporting a vulnerability
+
+BigForge is a hackathon proof of concept with no support commitment. If you find a security problem, please contact the maintainer privately through GitHub ([@snowjug](https://github.com/snowjug)) rather than opening a public issue with exploit details. GitHub private vulnerability reporting is not enabled on the repository yet; turning it on is listed as an owner action in [EXECUTION_STATE.md](./EXECUTION_STATE.md).
+
 ## Containment levels: read this first
 
 | Level | What it is | BigForge status |
