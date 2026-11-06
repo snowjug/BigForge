@@ -1,0 +1,49 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.vite/
+.turbo/
+
+# runtime data (local databases, sandboxes, generated workspaces, logs)
+.bigforge/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+logs/
+tmp/
+.tmp/
+
+# secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+secrets/
+
+# test and tooling artifacts
+playwright-report/
+test-results/
+blob-report/
+artifacts/
+screenshots/
+!docs/screenshots/
+
+# editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# agent tooling
+.copilot/

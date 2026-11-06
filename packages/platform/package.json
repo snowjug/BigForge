@@ -1,0 +1,22 @@
+{
+  "name": "@bigforge/platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@bigforge/schemas": "*",
+    "@bigforge/security": "*",
+    "@bigforge/providers": "*",
+    "@bigforge/core": "*",
+    "@bigforge/lab-monorepo": "*",
+    "@bigforge/observability": "*",
+    "zod": "^4.6.7"
+  }
+}

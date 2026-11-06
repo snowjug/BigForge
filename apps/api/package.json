@@ -1,0 +1,24 @@
+{
+  "name": "@bigforge/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@bigforge/schemas": "*",
+    "@bigforge/security": "*",
+    "@bigforge/platform": "*",
+    "@bigforge/observability": "*",
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/static": "^10.1.10",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
+  }
+}
