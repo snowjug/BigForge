@@ -42,7 +42,7 @@ docker build -t bigforge . && docker run --rm -p 4747:4747 bigforge
 1. **Choose a license.** `package.json` says `UNLICENSED` and the README says all rights are reserved. This is a decision for the repository owner; no license file was added.
 2. **Azure is authored, not deployed.** To go further: sign in with `az login`, run `scripts/azure-whatif.sh` (read-only), review it, then deploy through the guarded `deploy-azure.yml` workflow or `scripts/azure-deploy.sh` after configuring GitHub OIDC (see [AZURE.md](./AZURE.md), "Deploy only with explicit authorization" and "GitHub OIDC setup"). Record the outcome in the ledger. Nothing was created, changed or what-if'd in any subscription.
 3. **Live provider.** Azure OpenAI / OpenAI-compatible mode is validated against a local protocol stub only. A smoke test with a real endpoint is the next evidence to gather.
-4. **GitHub Actions.** The CI workflow could run on GitHub only after the delivery push; the delivery notes below record what was observed.
+4. **GitHub Actions.** `ci.yml` passed on GitHub for the delivery push (see the delivery notes below). `deploy-azure.yml` has never been run and is manual by design.
 
 ## Known limitations
 
@@ -61,6 +61,17 @@ See [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md). In short: synthetic lab and 
 | Azure CLI / Bicep | 2.92.0 / 0.48.1 | logged in; **nothing provisioned** |
 
 The machine is shared and has 4 vCPUs, so full runs are slow: `npm run validate` took about 7 minutes under load.
+
+## Delivery notes
+
+| Field | Value |
+|---|---|
+| Delivery | `git push origin main` on 2026-11-06: a fast-forward from `a879b60` to `3719973`, no force |
+| Last code change | `5af387b` (the commits after it change documentation only) |
+| Remote confirmed | `git ls-remote origin refs/heads/main` matched the local `HEAD`, and `gh api repos/snowjug/BigForge/commits/main` returned the same SHA |
+| GitHub Actions | [run 42232199625](https://github.com/snowjug/BigForge/actions/runs/42232199625) on `3719973`: validate, container, bicep and e2e jobs all succeeded |
+| Backup branch | `origin/delivery/wip` holds an earlier snapshot (`af65d13`); it can be deleted |
+| Repository metadata | description and topics were set with `gh repo edit` |
 
 ## Resume instructions
 

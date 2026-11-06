@@ -8,6 +8,8 @@
 
 BigForge turns repeated AI reasoning into verified executable **Reflexes**,<br>so models are called only at the edge of uncertainty.
 
+[![CI](https://github.com/snowjug/BigForge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/snowjug/BigForge/actions/workflows/ci.yml)
+
 [Try it](#try-it) · [The guided demo](#the-guided-demo) · [How it works](#how-it-works) · [What the numbers mean](#what-the-numbers-mean) · [Security](#security-and-responsible-ai) · [Azure](#azure) · [Limitations](#limitations)
 
 </div>
@@ -201,7 +203,8 @@ Azure is optional; the product is complete without it. The repository contains B
 | Item                                             | Status                                                                                  |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | Bicep build, lint and parameter compilation      | **Validated locally**                                                                   |
-| Container image build, health check, non-root run | **Validated locally**                                                                   |
+| Container image build, health check, non-root run | **Validated locally**, and its build and health check also run in CI                                   |
+| CI workflow (validate, container, Bicep, Playwright) | **Passed on GitHub** for the delivery push. The manual deployment workflow has never been run |
 | `az deployment what-if`, ARM validation, deployment | **Not run.** No Azure resource has been created                                      |
 | Azure OpenAI live model call, Application Insights telemetry | **Not performed.** The adapter is validated against a local protocol stub only |
 
