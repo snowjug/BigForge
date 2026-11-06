@@ -1,0 +1,469 @@
+/*
+ * Forge Graph (see docs/DESIGN_SYSTEM.md, "Forge Graph" and "Drift fracture").
+ * Every colour is a design token, so both themes work. The only glows are heat (ember, while a step
+ * runs) and the uncertainty boundary (molten). Motion explains state changes and nothing else.
+ */
+
+.bf-fg {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  /* The drawing must never widen its container (a 1fr grid track, a flex child): it scrolls or folds. */
+  contain: inline-size;
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.bf-fg__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.bf-fg__svg {
+  display: block;
+  flex: none;
+  max-width: none;
+  margin-inline: auto;
+  overflow: visible;
+  /* fractional glyph advances: label widths are predictable on every platform */
+  text-rendering: geometricPrecision;
+}
+
+/* ---- kind palette: steel for local work, molten for the boundary, jade for verification ---- */
+
+.bf-fg [data-kind] {
+  --k: var(--steel);
+}
+.bf-fg [data-kind='boundary'] {
+  --k: var(--molten);
+}
+.bf-fg [data-kind='verification'] {
+  --k: var(--jade);
+}
+
+/* ---- edges ---- */
+
+.bf-edge {
+  color: var(--ash);
+  transition: opacity var(--dur) var(--ease);
+}
+.bf-edge__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 1 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke var(--dur-slow) var(--ease);
+}
+.bf-edge__head {
+  fill: currentColor;
+  stroke: none;
+}
+.bf-edge[data-traversed='true'] {
+  color: var(--steel);
+}
+.bf-edge[data-traversed='true'] .bf-edge__line {
+  stroke-dasharray: none;
+}
+.bf-edge[data-related='true'] {
+  color: var(--text-dim);
+}
+.bf-edge[data-related='true'] .bf-edge__line {
+  stroke-width: 1.4;
+  stroke-dasharray: none;
+}
+.bf-edge[data-related='true'][data-traversed='true'] {
+  color: var(--steel);
+}
+.bf-edge[data-faded='true'] {
+  opacity: 0.2;
+}
+
+/* ---- nodes ---- */
+
+.bf-node {
+  /* idle borders stay quiet in dark and still reach 3:1 against the light theme's panels */
+  --idle-mix: 52%;
+  --fill: color-mix(in srgb, var(--k) 15%, var(--surface-1));
+  --stroke: color-mix(in srgb, var(--k) var(--idle-mix), transparent);
+  --sw: 1px;
+  --title: var(--text);
+  --meta: var(--text-dim);
+  --ink: var(--k);
+  cursor: default;
+  outline: none;
+  transition: opacity var(--dur) var(--ease);
+}
+:root[data-theme='light'] .bf-node {
+  --idle-mix: 72%;
+}
+.bf-node[data-interactive='true'] {
+  cursor: pointer;
+}
+.bf-node[data-kind='boundary'] {
+  --fill: color-mix(in srgb, var(--molten) 12%, var(--surface-1));
+  --stroke: color-mix(in srgb, var(--molten) 78%, transparent);
+}
+/* downstream of a fracture: receded, but the labels stay readable */
+.bf-node[data-dim='true'] {
+  opacity: 0.66;
+}
+
+.bf-node__body {
+  fill: var(--fill);
+  stroke: var(--stroke);
+  stroke-width: var(--sw);
+  pointer-events: all;
+  transition:
+    fill var(--dur-slow) var(--ease),
+    stroke var(--dur-slow) var(--ease);
+}
+/* validation is hollow: outline only */
+.bf-node[data-kind='validation'] .bf-node__body {
+  fill: transparent;
+}
+
+/* state overlay */
+.bf-node[data-state='running'] {
+  --stroke: var(--ember);
+  --sw: 1.5px;
+  --fill: color-mix(in srgb, var(--ember) 13%, var(--surface-1));
+  --ink: var(--ember);
+}
+.bf-node[data-state='done'] {
+  --stroke: var(--k);
+  --fill: color-mix(in srgb, var(--k) 20%, var(--surface-1));
+}
+.bf-node[data-state='boundary'] {
+  --stroke: var(--molten);
+  --sw: 1.5px;
+  --fill: color-mix(in srgb, var(--molten) 14%, var(--surface-1));
+  --ink: var(--molten);
+}
+.bf-node[data-state='verified'] {
+  --stroke: var(--jade);
+  --fill: color-mix(in srgb, var(--jade) 17%, var(--surface-1));
+  --ink: var(--jade);
+}
+.bf-node[data-state='stopped'],
+.bf-node[data-fracture='true'] {
+  --stroke: var(--crimson);
+  --fill: color-mix(in srgb, var(--crimson) 11%, var(--surface-1));
+  --ink: var(--crimson);
+}
+.bf-node[data-state='skipped'] {
+  --stroke: var(--ash);
+  --title: var(--text-faint);
+  --meta: var(--text-faint);
+  --ink: var(--ash);
+}
+.bf-node[data-state='skipped'] .bf-node__body {
+  fill: transparent;
+  stroke-dasharray: 4 3;
+}
+.bf-node[data-kind='validation'][data-state='verified'] .bf-node__body,
+.bf-node[data-kind='validation'][data-state='stopped'] .bf-node__body {
+  fill: transparent;
+}
+
+.bf-node__title {
+  fill: var(--title);
+  font-family: var(--font-ui);
+  font-weight: 560;
+  letter-spacing: -0.005em;
+}
+.bf-node__op {
+  fill: var(--meta);
+  font-family: var(--font-mono);
+}
+.bf-node__cap {
+  fill: var(--tone-text, var(--text-dim));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.bf-node__rule {
+  stroke: var(--line-strong);
+}
+.bf-node__bar-track {
+  fill: var(--line-strong);
+}
+.bf-node__bar {
+  fill: var(--ember);
+  opacity: 0.9;
+}
+
+/* icons */
+.bf-node__kind {
+  color: var(--k);
+}
+.bf-node__state {
+  color: var(--ink);
+}
+.bf-ico--fill {
+  fill: currentColor;
+  stroke: none;
+}
+.bf-ico--line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bf-ico__notch {
+  fill: var(--ember);
+}
+.bf-sico--fill {
+  fill: currentColor;
+  stroke: none;
+}
+.bf-sico--line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bf-node__notch {
+  fill: var(--ember);
+  pointer-events: none;
+}
+
+/* the boundary: a bright decision line, the only persistent glow */
+.bf-node__beam,
+.bf-node__beam-glow {
+  fill: var(--molten);
+  pointer-events: none;
+}
+.bf-node__beam-glow {
+  opacity: 0.75;
+}
+
+/* heat while running, molten pulse while an uncertainty boundary is pending */
+.bf-node__heat {
+  fill: none;
+  stroke: var(--ember);
+  stroke-width: 3.5;
+  opacity: 0.8;
+  pointer-events: none;
+}
+.bf-node[data-state='boundary'] .bf-node__heat {
+  stroke: var(--molten);
+}
+.bf-node[data-state='running'] .bf-node__heat {
+  animation: bf-heat 1.7s var(--ease) infinite;
+}
+.bf-node[data-state='boundary'] .bf-node__heat {
+  animation: bf-heat 2.3s var(--ease) infinite;
+}
+@keyframes bf-heat {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+/* verification locks the result: a solid jade ring */
+.bf-node__ring {
+  fill: none;
+  stroke: var(--jade);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* drift: crimson hairline cracks (over a dark halo so the fissure reads over the label) and a chip */
+.bf-node__cracks path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.bf-node__cracks-halo path {
+  stroke: var(--surface-1);
+  stroke-width: 3.2;
+  opacity: 0.8;
+}
+.bf-node__cracks-line path {
+  stroke: var(--crimson);
+  stroke-width: 1;
+}
+.bf-node__chip {
+  pointer-events: none;
+}
+.bf-node__chip rect {
+  fill: var(--surface-1);
+  stroke: var(--crimson);
+  stroke-width: 1;
+}
+.bf-node__chip text {
+  fill: var(--crimson-text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 560;
+}
+.bf-node__chip-mark {
+  fill: none;
+  stroke: var(--crimson);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* hover/focus/selection: steps linked to the spotlight only by an implied (hidden) dependency */
+.bf-node__rel {
+  fill: none;
+  stroke: var(--steel);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+.bf-node__rel[data-relation='output'] {
+  stroke: var(--text-dim);
+}
+.bf-node__port {
+  fill: var(--surface-1);
+  stroke: var(--steel);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+.bf-node__port[data-relation='output'] {
+  stroke: var(--text-dim);
+}
+
+/* selection brackets and the focus ring (both drawn inside the SVG) */
+.bf-node__select {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.bf-node__focus {
+  fill: none;
+  stroke: var(--focus);
+  stroke-width: 2;
+  opacity: 0;
+  pointer-events: none;
+}
+.bf-node__btn:focus-visible .bf-node__focus {
+  opacity: 1;
+}
+.bf-node__btn:focus,
+.bf-node__btn:focus-visible {
+  outline: none;
+}
+.bf-node__meta {
+  pointer-events: none;
+}
+
+/* ---- chrome around the drawing ---- */
+
+.bf-fg__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 10px 2px 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+}
+.bf-fg__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bf-fg__legend svg {
+  color: var(--k);
+}
+.bf-fg__note {
+  margin: 8px 2px 0;
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+.bf-fg__note strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.bf-fg__summary {
+  margin: 10px 2px 0;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.bf-fg__summary summary {
+  width: fit-content;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.bf-fg__summary ol {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 1.6em;
+  list-style: decimal;
+}
+.bf-fg__summary p {
+  margin-top: 8px;
+}
+.bf-fg__summary strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.bf-fg__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- motion: loops stop, transitions shrink (OS setting and the in-app toggle) ---- */
+
+:root[data-motion='reduced'] .bf-fg *,
+:root[data-motion='reduced'] .bf-fg *::before,
+:root[data-motion='reduced'] .bf-fg *::after {
+  animation: none !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) .bf-fg *,
+  :root:not([data-motion='full']) .bf-fg *::before,
+  :root:not([data-motion='full']) .bf-fg *::after {
+    animation: none !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0s !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .bf-node__body {
+    stroke: CanvasText;
+    fill: Canvas;
+  }
+  .bf-node__title,
+  .bf-node__op,
+  .bf-node__cap {
+    fill: CanvasText;
+  }
+  .bf-edge {
+    color: CanvasText;
+  }
+  .bf-node__focus {
+    stroke: Highlight;
+  }
+}

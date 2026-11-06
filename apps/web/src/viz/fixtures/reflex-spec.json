@@ -1,0 +1,643 @@
+{
+  "schema": "bigforge.reflex/v1",
+  "name": "first-causal-error",
+  "version": "1.0.0",
+  "familyId": "fam_8e6c3e86fb04",
+  "description": "Learns the repeated procedure for diagnosing and repairing a failing monorepo build: normalise the log, find the root cause, inspect, decide on a remedy, patch, and verify with independent evidence.",
+  "inputs": {
+    "ci_log": {
+      "type": "path",
+      "description": "Repository-relative path of the CI failure log artifact",
+      "required": true
+    }
+  },
+  "preconditions": [
+    {
+      "op": "in",
+      "left": {
+        "ref": "env.toolchain_major"
+      },
+      "right": {
+        "const": [1]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "snapshot",
+      "title": "Snapshot files before any change",
+      "kind": "validation",
+      "operator": {
+        "id": "local.snapshot_tree",
+        "version": "1.0.0"
+      },
+      "args": {},
+      "dependsOn": [],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": [],
+        "conservation": 1,
+        "baselineTokens": 0,
+        "selectedBecause": "local.snapshot_tree reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.snapshot_tree@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "ingest",
+      "title": "Read CI log",
+      "kind": "known",
+      "operator": {
+        "id": "local.read_ci_log",
+        "version": "1.0.0"
+      },
+      "args": {
+        "path": {
+          "ref": "inputs.ci_log"
+        }
+      },
+      "dependsOn": [],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["read_failure_log"],
+        "conservation": 1,
+        "baselineTokens": 491,
+        "selectedBecause": "local.read_ci_log reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.read_ci_log@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "normalize",
+      "title": "Normalize the build log",
+      "kind": "known",
+      "operator": {
+        "id": "local.normalize_log",
+        "version": "1.0.0"
+      },
+      "args": {
+        "log": {
+          "ref": "steps.ingest.output.ci_log"
+        }
+      },
+      "dependsOn": ["ingest"],
+      "escalateWhen": [],
+      "stopWhen": [
+        {
+          "op": "eq",
+          "left": {
+            "ref": "steps.normalize.output.recognized"
+          },
+          "right": {
+            "const": false
+          }
+        },
+        {
+          "op": "eq",
+          "left": {
+            "ref": "steps.normalize.output.error_count"
+          },
+          "right": {
+            "const": 0
+          }
+        }
+      ],
+      "rationale": {
+        "replaces": ["read_failure_log"],
+        "conservation": 1,
+        "baselineTokens": 491,
+        "selectedBecause": "local.normalize_log reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.normalize_log@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "graph",
+      "title": "Read workspace dependency graph",
+      "kind": "known",
+      "operator": {
+        "id": "local.workspace_graph",
+        "version": "1.0.0"
+      },
+      "args": {},
+      "dependsOn": [],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["inspect_workspace_graph"],
+        "conservation": 1,
+        "baselineTokens": 1994,
+        "selectedBecause": "local.workspace_graph reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.workspace_graph@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "locate",
+      "title": "Locate first causal error (log order)",
+      "kind": "known",
+      "operator": {
+        "id": "local.locate_by_log_order",
+        "version": "1.0.0"
+      },
+      "args": {
+        "log": {
+          "ref": "steps.normalize.output.normalized_log"
+        }
+      },
+      "dependsOn": ["normalize"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["locate_root_cause"],
+        "conservation": 1,
+        "baselineTokens": 0,
+        "selectedBecause": "2 operators reproduce the baseline on all 5 traces; the simplest (local.locate_by_log_order) was selected.",
+        "alternatives": [
+          {
+            "operator": "local.locate_by_log_order@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          },
+          {
+            "operator": "local.locate_by_dependency_graph@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "map",
+      "title": "Map the error to its workspace and owner",
+      "kind": "known",
+      "operator": {
+        "id": "local.map_workspace",
+        "version": "1.0.0"
+      },
+      "args": {
+        "root": {
+          "ref": "steps.locate.output.root_failure"
+        },
+        "graph": {
+          "ref": "steps.graph.output.workspace_graph"
+        }
+      },
+      "dependsOn": ["locate", "graph"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["inspect_failing_workspace"],
+        "conservation": 1,
+        "baselineTokens": 2687,
+        "selectedBecause": "local.map_workspace reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.map_workspace@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "diagnose",
+      "title": "Run a focused diagnostic build",
+      "kind": "validation",
+      "operator": {
+        "id": "local.focused_diagnostic",
+        "version": "1.0.0"
+      },
+      "args": {
+        "workspace": {
+          "ref": "steps.map.output.failing_workspace"
+        }
+      },
+      "dependsOn": ["map"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["run_focused_diagnostic"],
+        "conservation": 1,
+        "baselineTokens": 2788,
+        "selectedBecause": "local.focused_diagnostic reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.focused_diagnostic@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "decide",
+      "title": "Select the remedy",
+      "kind": "hybrid",
+      "operator": {
+        "id": "local.select_remedy",
+        "version": "1.0.0"
+      },
+      "args": {
+        "root": {
+          "ref": "steps.locate.output.root_failure"
+        },
+        "workspace": {
+          "ref": "steps.map.output.failing_workspace"
+        },
+        "graph": {
+          "ref": "steps.graph.output.workspace_graph"
+        },
+        "diagnostic": {
+          "ref": "steps.diagnose.output.diagnostic"
+        }
+      },
+      "dependsOn": ["locate", "map", "graph", "diagnose"],
+      "escalateWhen": [
+        {
+          "op": "lt",
+          "left": {
+            "ref": "steps.decide.confidence"
+          },
+          "right": {
+            "const": 0.8
+          }
+        }
+      ],
+      "stopWhen": [
+        {
+          "op": "eq",
+          "left": {
+            "ref": "steps.decide.output.candidate_count"
+          },
+          "right": {
+            "const": 0
+          }
+        }
+      ],
+      "boundary": {
+        "question": "Which candidate replacement resolves the failing import while preserving the call site's intent?",
+        "kind": "choose_option",
+        "optionsFrom": "steps.decide.output.candidates",
+        "resolveInto": "remedy",
+        "evidenceSelectors": [
+          {
+            "id": "error",
+            "tags": ["error"],
+            "required": true
+          },
+          {
+            "id": "call_site",
+            "tags": ["call_site"],
+            "required": true
+          },
+          {
+            "id": "candidates",
+            "tags": ["candidate_signature"],
+            "required": true
+          }
+        ],
+        "budgetTokens": 1500,
+        "minCapability": "standard",
+        "evidenceRequired": "A choice among the listed option ids with a one or two sentence rationale",
+        "verifyBy": "Rebuild and run the workspace tests; the independent verifier must pass"
+      },
+      "rationale": {
+        "replaces": [
+          "inspect_lockfile",
+          "inspect_failing_source",
+          "inspect_dependency_exports",
+          "inspect_dependency_manifest",
+          "decide_remedy"
+        ],
+        "conservation": 0.2,
+        "baselineTokens": 7889,
+        "selectedBecause": "local.select_remedy reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.select_remedy@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "patch",
+      "title": "Apply the remedy",
+      "kind": "known",
+      "operator": {
+        "id": "local.apply_remedy",
+        "version": "1.0.0"
+      },
+      "args": {
+        "remedy": {
+          "ref": "steps.decide.output.remedy"
+        }
+      },
+      "dependsOn": ["decide", "snapshot"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["apply_remedy"],
+        "conservation": 1,
+        "baselineTokens": 3916,
+        "selectedBecause": "local.apply_remedy reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.apply_remedy@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "rebuild",
+      "title": "Rebuild the monorepo",
+      "kind": "validation",
+      "operator": {
+        "id": "local.rerun_build",
+        "version": "1.0.0"
+      },
+      "args": {
+        "applied": {
+          "ref": "steps.patch.output.applied"
+        }
+      },
+      "dependsOn": ["patch"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["verify_build"],
+        "conservation": 1,
+        "baselineTokens": 3975,
+        "selectedBecause": "local.rerun_build reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.rerun_build@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "test",
+      "title": "Run the workspace tests",
+      "kind": "validation",
+      "operator": {
+        "id": "local.run_tests",
+        "version": "1.0.0"
+      },
+      "args": {
+        "workspace": {
+          "ref": "steps.map.output.failing_workspace"
+        },
+        "applied": {
+          "ref": "steps.patch.output.applied"
+        }
+      },
+      "dependsOn": ["map", "patch"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["verify_tests"],
+        "conservation": 1,
+        "baselineTokens": 5290,
+        "selectedBecause": "local.run_tests reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.run_tests@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "verify",
+      "title": "Verify against declared evidence",
+      "kind": "verification",
+      "operator": {
+        "id": "local.verify_outcome",
+        "version": "1.0.0"
+      },
+      "args": {
+        "before": {
+          "ref": "steps.snapshot.output.before_snapshot"
+        },
+        "rebuild": {
+          "ref": "steps.rebuild.output.rebuild"
+        },
+        "tests": {
+          "ref": "steps.test.output.tests"
+        },
+        "root": {
+          "ref": "steps.locate.output.root_failure"
+        },
+        "applied": {
+          "ref": "steps.patch.output.applied"
+        },
+        "log": {
+          "ref": "steps.normalize.output.normalized_log"
+        },
+        "graph": {
+          "ref": "steps.graph.output.workspace_graph"
+        }
+      },
+      "dependsOn": ["snapshot", "rebuild", "test", "locate", "patch", "normalize", "graph"],
+      "escalateWhen": [],
+      "stopWhen": [
+        {
+          "op": "eq",
+          "left": {
+            "ref": "steps.verify.output.passed"
+          },
+          "right": {
+            "const": false
+          }
+        }
+      ],
+      "rationale": {
+        "replaces": [],
+        "conservation": 1,
+        "baselineTokens": 0,
+        "selectedBecause": "local.verify_outcome reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.verify_outcome@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "report",
+      "title": "Render the report",
+      "kind": "known",
+      "operator": {
+        "id": "local.render_report",
+        "version": "1.0.0"
+      },
+      "args": {
+        "root": {
+          "ref": "steps.locate.output.root_failure"
+        },
+        "applied": {
+          "ref": "steps.patch.output.applied"
+        },
+        "verification": {
+          "ref": "steps.verify.output.verification"
+        }
+      },
+      "dependsOn": ["locate", "patch", "verify"],
+      "escalateWhen": [],
+      "stopWhen": [],
+      "rationale": {
+        "replaces": ["report"],
+        "conservation": 1,
+        "baselineTokens": 5511,
+        "selectedBecause": "local.render_report reproduces the baseline on all 5 traces.",
+        "alternatives": [
+          {
+            "operator": "local.render_report@1.0.0",
+            "consistent": true,
+            "matched": 5,
+            "of": 5
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "root_failure": {
+      "ref": "steps.locate.output.root_failure"
+    },
+    "remedy": {
+      "ref": "steps.decide.output.remedy"
+    },
+    "report": {
+      "ref": "steps.report.output.report"
+    },
+    "verification": {
+      "ref": "steps.verify.output.verification"
+    }
+  },
+  "permissions": {
+    "read": [
+      "CODEOWNERS",
+      "apps/**",
+      "apps/*/package.json",
+      "ci/*.log",
+      "forge.lock.json",
+      "packages/**",
+      "packages/*/package.json"
+    ],
+    "write": [
+      "apps/*/package.json",
+      "apps/*/src/**",
+      "packages/*/package.json",
+      "packages/*/src/**"
+    ],
+    "commands": [
+      {
+        "program": "forge-ci",
+        "subcommands": ["build", "graph", "test"]
+      }
+    ],
+    "limits": {
+      "network": false,
+      "secrets": "none",
+      "timeoutS": 120,
+      "maxOutputBytes": 1000000,
+      "maxSteps": 17
+    }
+  },
+  "verify": [
+    {
+      "id": "original_failure_gone",
+      "description": "The original build failure no longer reproduces"
+    },
+    {
+      "id": "relevant_tests_pass",
+      "description": "Relevant tests pass"
+    },
+    {
+      "id": "no_unrelated_changes",
+      "description": "Only files in the root-cause workspace changed"
+    },
+    {
+      "id": "security_policy_pass",
+      "description": "No protected paths, scripts, secrets or unpinned dependencies changed"
+    }
+  ],
+  "compatibility": {
+    "toolchain": {
+      "name": "forge-ci",
+      "observed": ["1.4.2"],
+      "range": ">=1.4.2 <2.0.0"
+    }
+  },
+  "rollbackTo": null,
+  "provenance": {
+    "compilerVersion": "bigforge.compiler/1.0.0",
+    "sourceTraceIds": [
+      "trc_451e774acd0f",
+      "trc_56aff9a3535c",
+      "trc_727801cf143d",
+      "trc_d09304b4c448",
+      "trc_62931c17b127"
+    ],
+    "sourceVariants": [
+      "missing_dependency@packages/security",
+      "missing_dependency@packages/telemetry",
+      "missing_export@packages/auth",
+      "missing_export@packages/ui-kit",
+      "version_mismatch@packages/billing"
+    ],
+    "excludedTraceIds": [],
+    "assumptions": [
+      "Toolchain compatibility is inferred as forge-ci >=1.4.2 <2.0.0 from observed version(s) 1.4.2. Behaviour changes inside that range are not detected at compile time; the Drift Canary monitors them.",
+      "Step \"locate\": 2 operators fit all 5 traces (local.locate_by_log_order@1.0.0, local.locate_by_dependency_graph@1.0.0). Chose the simpler local.locate_by_log_order. Takes the first error line in the build log as the root cause. Cheap; assumes the log lists a workspace failure before the failures it causes.",
+      "Step \"decide\" decides locally only when its confidence is at least 0.8; otherwise it crosses its uncertainty boundary."
+    ],
+    "mutationOf": null
+  }
+}

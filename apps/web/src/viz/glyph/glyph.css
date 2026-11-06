@@ -1,0 +1,34 @@
+/* Reflex identity glyph: static, theme-aware, no motion. */
+
+.bf-glyph {
+  display: inline-block;
+  flex: none;
+  max-width: none;
+  vertical-align: middle;
+}
+.bf-glyph__strand--steel {
+  fill: var(--steel, #8fb4de);
+}
+.bf-glyph__strand--ash {
+  fill: var(--ash, #8b93a1);
+  opacity: 0.7;
+}
+.bf-glyph__strand--ember {
+  fill: var(--ember, #ff7a2e);
+}
+.bf-glyph__rails path {
+  fill: none;
+  stroke: var(--ash, #8b93a1);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  opacity: 0.45;
+}
+
+@media (forced-colors: active) {
+  .bf-glyph__strand--steel,
+  .bf-glyph__strand--ash,
+  .bf-glyph__strand--ember {
+    fill: CanvasText;
+    opacity: 1;
+  }
+}
