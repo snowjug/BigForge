@@ -14,7 +14,12 @@ let app: FastifyInstance;
 const HEADERS = { 'x-bigforge-client': 'web', 'content-type': 'application/json' };
 
 async function login(email: string): Promise<string> {
-  const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: HEADERS, payload: { email, password: 'forge-demo' } });
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    headers: HEADERS,
+    payload: { email, password: 'forge-demo' },
+  });
   expect(res.statusCode, `login ${email}`).toBe(200);
   const cookie = res.cookies.find((c) => c.name === 'bf_session');
   expect(cookie?.httpOnly).toBe(true);
@@ -23,11 +28,19 @@ async function login(email: string): Promise<string> {
 }
 
 const call = (cookie: string, method: 'GET' | 'POST' | 'PUT', url: string, payload?: unknown) =>
-  app.inject({ method, url, headers: { ...HEADERS, cookie }, ...(payload !== undefined ? { payload: payload as object } : {}) });
+  app.inject({
+    method,
+    url,
+    headers: { ...HEADERS, cookie },
+    ...(payload !== undefined ? { payload: payload as object } : {}),
+  });
 
 beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'bf-api-'));
-  platform = await Platform.create({ ...loadConfig({ BIGFORGE_DATA_DIR: dir }), databaseFile: ':memory:' });
+  platform = await Platform.create({
+    ...loadConfig({ BIGFORGE_DATA_DIR: dir }),
+    databaseFile: ':memory:',
+  });
   app = await buildApp(platform);
 });
 afterAll(async () => {
@@ -56,18 +69,33 @@ describe('platform basics', () => {
   });
 
   it('rejects mutating requests without the client header (CSRF defence)', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'content-type': 'application/json' }, payload: { email: 'ada@acme.test', password: 'forge-demo' } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: { email: 'ada@acme.test', password: 'forge-demo' },
+    });
     expect(res.statusCode).toBe(403);
     expect(res.json()).toMatchObject({ error: { code: 'csrf' } });
   });
 
   it('rejects bad credentials with a generic message and rate limits repeated attempts', async () => {
     for (let i = 0; i < 10; i += 1) {
-      const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: HEADERS, payload: { email: 'nobody@acme.test', password: 'wrong' } });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        headers: HEADERS,
+        payload: { email: 'nobody@acme.test', password: 'wrong' },
+      });
       expect(res.statusCode).toBe(401);
       expect(res.json().error.message).toBe('Invalid email or password');
     }
-    const limited = await app.inject({ method: 'POST', url: '/api/auth/login', headers: HEADERS, payload: { email: 'nobody@acme.test', password: 'wrong' } });
+    const limited = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: HEADERS,
+      payload: { email: 'nobody@acme.test', password: 'wrong' },
+    });
     expect(limited.statusCode).toBe(429);
   });
 
@@ -95,11 +123,13 @@ describe('role enforcement and tenant isolation', () => {
     const taskId = created.json().id as string;
     const gus = await login('gus@globex.test');
     expect((await call(gus, 'GET', `/api/tasks/${taskId}`)).statusCode).toBe(404);
-    expect((await call(gus, 'POST', `/api/tasks/${taskId}/run`, { mode: 'baseline' })).statusCode).toBe(404);
+    expect(
+      (await call(gus, 'POST', `/api/tasks/${taskId}/run`, { mode: 'baseline' })).statusCode,
+    ).toBe(404);
     const list = (await call(gus, 'GET', '/api/tasks')).json();
     expect(list.items).toHaveLength(0);
-    const own = (await call(linus, 'GET', '/api/tasks')).json();
-    expect(own.items.map((t: { id: string }) => t.id)).toContain(taskId);
+    const own = (await call(linus, 'GET', '/api/tasks')).json<{ items: { id: string }[] }>();
+    expect(own.items.map((t) => t.id)).toContain(taskId);
     const audit = (await call(gus, 'GET', '/api/audit')).json();
     expect(JSON.stringify(audit)).not.toContain(taskId);
   });
@@ -112,10 +142,14 @@ describe('role enforcement and tenant isolation', () => {
 
   it('blocks unauthorised Reflex activation', async () => {
     const linus = await login('linus@acme.test');
-    const res = await call(linus, 'POST', '/api/reflexes/versions/nope/promote', { comment: 'please' });
+    const res = await call(linus, 'POST', '/api/reflexes/versions/nope/promote', {
+      comment: 'please',
+    });
     expect(res.statusCode).toBe(403);
     const grace = await login('grace@acme.test');
-    expect((await call(grace, 'POST', '/api/reflexes/versions/nope/promote', {})).statusCode).toBe(404);
+    expect((await call(grace, 'POST', '/api/reflexes/versions/nope/promote', {})).statusCode).toBe(
+      404,
+    );
   });
 
   it('only admins reset the demo', async () => {
@@ -139,7 +173,11 @@ describe('command safety playground', () => {
       expect(body.executed).toBe(false);
       expect(body.allowlist.rule, command).toBe(rule);
     }
-    const ok = (await call(ada, 'POST', '/api/security/evaluate', { command: 'forge-ci build --workspace packages/core --verbose' })).json();
+    const ok = (
+      await call(ada, 'POST', '/api/security/evaluate', {
+        command: 'forge-ci build --workspace packages/core --verbose',
+      })
+    ).json();
     expect(ok.verdict).toBe('would_run');
     expect(ok.executed).toBe(false);
   });
@@ -156,21 +194,36 @@ describe('the guided demo through the HTTP API', () => {
 
     const res = await call(grace, 'POST', '/api/demo/steps/25/perform');
     expect(res.statusCode).toBe(200);
-    const state = res.json() as DemoStateDto;
+    const state = res.json<DemoStateDto>();
     expect(state.completed).toHaveLength(25);
     expect(state.context.mutatedVersionId).toBeTruthy();
 
     const reflexes = (await call(grace, 'GET', '/api/reflexes')).json();
-    const versions = reflexes.reflexes[0].versions as { id: string; version: string; status: string }[];
-    expect(versions.map((v) => `${v.version}:${v.status}`).sort()).toEqual(['1.0.0:shadow', '1.1.0:candidate']);
+    const versions = reflexes.reflexes[0].versions as {
+      id: string;
+      version: string;
+      status: string;
+    }[];
+    expect(versions.map((v) => `${v.version}:${v.status}`).sort()).toEqual([
+      '1.0.0:shadow',
+      '1.1.0:candidate',
+    ]);
 
-    const mutated = (await call(grace, 'GET', `/api/reflexes/versions/${state.context.mutatedVersionId as string}`)).json() as ReflexVersionDto;
+    const mutated = (
+      await call(grace, 'GET', `/api/reflexes/versions/${state.context.mutatedVersionId as string}`)
+    ).json<ReflexVersionDto>();
     expect(mutated.integrity.ok).toBe(true);
     expect(mutated.mutations[0]?.status).toBe('proposed');
     expect(mutated.mutations[0]?.evidence.activated).toBe(false);
     expect(mutated.replay.agreement).toBe(1);
 
-    const comps = (await call(grace, 'GET', `/api/reflexes/versions/${state.context.reflexVersionId as string}/comparisons?kind=shadow&limit=100`)).json();
+    const comps = (
+      await call(
+        grace,
+        'GET',
+        `/api/reflexes/versions/${state.context.reflexVersionId as string}/comparisons?kind=shadow&limit=100`,
+      )
+    ).json();
     expect(comps.items).toHaveLength(12);
     expect(comps.total).toBe(12);
 
@@ -178,9 +231,15 @@ describe('the guided demo through the HTTP API', () => {
     expect(verify.ok).toBe(true);
     expect(verify.count).toBeGreaterThan(40);
 
-    const killer = (await call(grace, 'GET', `/api/runs/${state.context.killerRunId as string}`)).json();
+    const killer = (
+      await call(grace, 'GET', `/api/runs/${state.context.killerRunId as string}`)
+    ).json();
     expect(killer.usage.modelCalls).toBe(1);
-    expect(killer.exec.boundaries[0].decision.path).toEqual(['REDUCE_CONTEXT', 'USE_SMALLER_MODEL', 'ALLOW']);
+    expect(killer.exec.boundaries[0].decision.path).toEqual([
+      'REDUCE_CONTEXT',
+      'USE_SMALLER_MODEL',
+      'ALLOW',
+    ]);
     expect(JSON.stringify(killer)).not.toContain('frg_demo_NOT_A_REAL_SECRET');
 
     const econ = (await call(grace, 'GET', '/api/economics')).json();
@@ -189,7 +248,9 @@ describe('the guided demo through the HTTP API', () => {
 
     // Another tenant sees none of it.
     const gus = await login('gus@globex.test');
-    expect((await call(gus, 'GET', `/api/runs/${state.context.killerRunId as string}`)).statusCode).toBe(404);
+    expect(
+      (await call(gus, 'GET', `/api/runs/${state.context.killerRunId as string}`)).statusCode,
+    ).toBe(404);
     expect((await call(gus, 'GET', '/api/reflexes')).json().reflexes).toHaveLength(0);
   }, 240_000);
 
@@ -197,7 +258,7 @@ describe('the guided demo through the HTTP API', () => {
     const ada = await login('ada@acme.test');
     const res = await call(ada, 'POST', '/api/demo/reset', {});
     expect(res.statusCode).toBe(200);
-    const state = res.json() as DemoStateDto;
+    const state = res.json<DemoStateDto>();
     expect(state.completed).toHaveLength(0);
     const audit = (await call(ada, 'GET', '/api/audit?limit=5')).json();
     expect(audit.items[0].action).toBe('demo.reset');

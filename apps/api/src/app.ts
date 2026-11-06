@@ -3,7 +3,7 @@ import path from 'node:path';
 import fastifyCookie from '@fastify/cookie';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
-import { type Actor, AppError, type Platform } from '@bigforge/platform';
+import { type Actor, AppError, type Platform, assertCan } from '@bigforge/platform';
 import { signSession, verifySession } from '@bigforge/security';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
@@ -155,25 +155,32 @@ export async function buildApp(
     done();
   });
 
+  app.addHook('onResponse', (req, reply, done) => {
+    const route = req.routeOptions.url ?? 'unmatched';
+    platform.metrics.httpRequests.inc({
+      method: req.method,
+      route,
+      status: String(reply.statusCode),
+    });
+    platform.metrics.httpDuration.observe(reply.elapsedTime / 1000, { route });
+    done();
+  });
+
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {
-      void reply
-        .status(err.status)
-        .send({
-          error: {
-            code: err.code,
-            message: err.message,
-            ...(err.details !== undefined ? { details: err.details } : {}),
-          },
-        });
+      void reply.status(err.status).send({
+        error: {
+          code: err.code,
+          message: err.message,
+          ...(err.details !== undefined ? { details: err.details } : {}),
+        },
+      });
       return;
     }
     if (err instanceof ZodError) {
-      void reply
-        .status(400)
-        .send({
-          error: { code: 'bad_request', message: 'The request did not match the expected shape' },
-        });
+      void reply.status(400).send({
+        error: { code: 'bad_request', message: 'The request did not match the expected shape' },
+      });
       return;
     }
     const status =
@@ -181,14 +188,17 @@ export async function buildApp(
         ? (err as { statusCode: number }).statusCode
         : 500;
     if (status >= 500) req.log.error({ err }, 'Unhandled error');
-    void reply
-      .status(status)
-      .send({
-        error: {
-          code: status >= 500 ? 'internal_error' : 'request_error',
-          message: status >= 500 ? 'Something went wrong on the server' : (err instanceof Error ? err.message : 'Bad request'),
-        },
-      });
+    void reply.status(status).send({
+      error: {
+        code: status >= 500 ? 'internal_error' : 'request_error',
+        message:
+          status >= 500
+            ? 'Something went wrong on the server'
+            : err instanceof Error
+              ? err.message
+              : 'Bad request',
+      },
+    });
   });
 
   app.setNotFoundHandler((req, reply) => {
@@ -202,6 +212,13 @@ export async function buildApp(
       return;
     }
     void reply.status(404).send({ error: { code: 'not_found', message: 'Not found' } });
+  });
+
+  app.get('/api/metrics', (req, reply) => {
+    const actor = requireActor(req);
+    assertCan(actor, 'manage_settings');
+    void reply.type('text/plain; version=0.0.4');
+    return platform.metrics.registry.render();
   });
 
   app.get('/api/health', () => ({ status: 'ok', time: new Date().toISOString() }));

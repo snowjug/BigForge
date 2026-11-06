@@ -47,3 +47,7 @@ Thumbs.db
 
 # agent tooling
 .copilot/
+
+# scratch areas
+infra/.scratch/
+.tmp-*/

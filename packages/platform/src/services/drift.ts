@@ -122,6 +122,7 @@ export class DriftService {
         ledger: { category: 'canary_reference', label: `Canary reference run ${sid}` },
         ids: this.p.ids,
         now: this.p.now(),
+        metrics: this.p.metrics,
       });
       const reflexRow = saveRun(ts, {
         taskId: task.id,
@@ -132,6 +133,7 @@ export class DriftService {
         ledger: { category: 'reflex_canary', label: `Canary Reflex run ${sid}` },
         ids: this.p.ids,
         now: this.p.now(),
+        metrics: this.p.metrics,
       });
       const comparison = compareRuns(digestFromRun(baseRow), digestFromRun(reflexRow));
       const comparisonId = this.p.ids.next('cmp');

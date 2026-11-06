@@ -1,5 +1,6 @@
 import { diffLines, diffStats, runCrr } from '@bigforge/core';
 import type { UsagePoint } from '@bigforge/core';
+import type { BigForgeMetrics } from '@bigforge/observability';
 import type {
   ExecSummary,
   FileChangeDto,
@@ -138,6 +139,7 @@ export interface SaveRunInput {
   ledger: { category: string; label: string };
   ids: { next(prefix: string): string };
   now: string;
+  metrics?: BigForgeMetrics;
 }
 
 /** Persists a run and its ledger entry. The trace is already redacted by the recorder. */
@@ -161,6 +163,23 @@ export function saveRun(ts: TenantStore, input: SaveRunInput): RunRow {
     createdAt: input.now,
   };
   ts.runs.insert(ts.tenantId, row);
+  const m = input.metrics;
+  if (m) {
+    m.runs.inc({ kind: trace.runKind, status: trace.outcome.status });
+    const mode = trace.provider.mode;
+    if (trace.usage.modelCalls > 0)
+      m.modelCalls.inc({ mode, provenance: trace.usage.tokenProvenance }, trace.usage.modelCalls);
+    m.tokens.inc(
+      { type: 'input', provenance: trace.usage.tokenProvenance },
+      trace.usage.inputTokens,
+    );
+    m.tokens.inc(
+      { type: 'output', provenance: trace.usage.tokenProvenance },
+      trace.usage.outputTokens,
+    );
+    for (const b of input.result.boundaries)
+      m.firewallVerdicts.inc({ verdict: b.decision.verdict });
+  }
   ts.ledger.insert(ts.tenantId, {
     id: input.ids.next('led'),
     category: input.ledger.category,

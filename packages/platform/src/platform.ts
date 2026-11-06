@@ -11,6 +11,7 @@ import {
 import type { RunDetailDto, SessionUser, SettingsDto, SystemDto } from '@bigforge/schemas';
 import { hashPassword, verifyPassword } from '@bigforge/security';
 import { type Actor, AppError, SYSTEM_ACTOR_NAME } from './actor';
+import { type BigForgeMetrics, createMetrics } from '@bigforge/observability';
 import { type PlatformConfig } from './config';
 import { toRunDetail, toRunSummary, toTaskDto } from './services/shared';
 import { type Db, migrate, openDatabase } from './db/database';
@@ -39,6 +40,7 @@ const DUMMY_HASH = hashPassword('not-a-real-password');
 export class Platform {
   readonly config: PlatformConfig;
   readonly ids: IdGenerator = randomIds();
+  readonly metrics: BigForgeMetrics = createMetrics();
   readonly systemName = SYSTEM_ACTOR_NAME;
   readonly driftName = DRIFT_SYSTEM_NAME;
   store!: Store;
@@ -95,12 +97,22 @@ export class Platform {
     this.migrationVersion = migrate(db).current;
     this.store = new Store(db);
     const now = this.now();
-    if (this.config.mode === 'demo') seedDemoIdentities(this.store, now);
-    else {
-      const email = this.config.env.BIGFORGE_BOOTSTRAP_ADMIN_EMAIL;
-      const password = this.config.env.BIGFORGE_BOOTSTRAP_ADMIN_PASSWORD;
-      if (email && password && password.length >= 12)
-        seedBootstrapAdmin(this.store, now, email, password);
+    // Idempotent: restarting against an existing database must not re-seed identities.
+    if (this.store.listTenants().length === 0) {
+      if (this.config.mode === 'demo') seedDemoIdentities(this.store, now);
+      else {
+        const email = this.config.env.BIGFORGE_BOOTSTRAP_ADMIN_EMAIL;
+        const password = this.config.env.BIGFORGE_BOOTSTRAP_ADMIN_PASSWORD;
+        if (email && password && password.length >= 12)
+          seedBootstrapAdmin(this.store, now, email, password);
+      }
+    }
+    if (this.config.jobsMode === 'inline') {
+      this.store.db
+        .prepare(
+          "UPDATE jobs SET status = 'failed', error = 'Interrupted by a server restart', finished_at = ? WHERE status = 'running'",
+        )
+        .run(now);
     }
     this.engine = await createEngine({
       dataDir: this.config.dataDir,

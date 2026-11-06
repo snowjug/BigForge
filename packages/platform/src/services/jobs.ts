@@ -167,8 +167,10 @@ export class JobService {
         result,
         finishedAt: this.p.now(),
       });
+      this.p.metrics.jobs.inc({ type: row.type, status: 'succeeded' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Job failed';
+      this.p.metrics.jobs.inc({ type: row.type, status: 'failed' });
       try {
         ts.jobs.update(ts.tenantId, row.id, {
           status: 'failed',

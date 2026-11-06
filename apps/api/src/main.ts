@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setupTelemetry } from '@bigforge/observability';
 import { Platform, loadConfig } from '@bigforge/platform';
 import { buildApp } from './app';
 
@@ -9,6 +10,7 @@ import { buildApp } from './app';
  */
 async function main(): Promise<void> {
   const config = loadConfig(process.env);
+  const telemetry = await setupTelemetry(process.env);
   const platform = await Platform.create(config);
   const here = path.dirname(fileURLToPath(import.meta.url));
   const webDir = process.env.BIGFORGE_WEB_DIR ?? path.resolve(here, '../web');
@@ -25,6 +27,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
+  app.log.info({ telemetry: telemetry.exporter }, telemetry.note);
   await app.listen({ port, host });
   app.log.info(`BigForge (${config.mode} mode) listening on http://${host}:${port}`);
 }

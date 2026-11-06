@@ -331,6 +331,7 @@ export class TaskService {
         ledger: { category, label },
         ids: this.p.ids,
         now: this.p.now(),
+        metrics: this.p.metrics,
       });
 
     if (!version) {
@@ -420,6 +421,7 @@ export class TaskService {
       ledger: { category: 'reflex_live', label: `Reflex ${version.spec.name} v${version.version}` },
       ids: this.p.ids,
       now: this.p.now(),
+      metrics: this.p.metrics,
     });
     const baseRow = baseRes
       ? persistBaseline(

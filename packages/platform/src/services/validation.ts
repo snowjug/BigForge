@@ -71,6 +71,7 @@ export class ValidationService {
         throw conflict(err.message, { from: err.from, event: err.event });
       throw err;
     }
+    this.p.metrics.transitions.inc({ from: version.status, to });
     const now = this.p.now();
     ts.versions.update(ts.tenantId, version.id, { status: to, updatedAt: now, ...extra });
     ts.transitions.insert(ts.tenantId, {
@@ -167,6 +168,7 @@ export class ValidationService {
         ledger: { category: 'reflex_replay', label: `Replay of ${scenario.id}` },
         ids: this.p.ids,
         now: this.p.now(),
+        metrics: this.p.metrics,
       });
       const comparison = compareRuns(digestFromRun(base), digestFromRun(reflexRow));
       const comparisonId = this.p.ids.next('cmp');
@@ -289,6 +291,7 @@ export class ValidationService {
         ledger: { category: 'shadow_reference', label: `Shadow reference run ${sid}` },
         ids: this.p.ids,
         now: this.p.now(),
+        metrics: this.p.metrics,
       });
       const reflexRow = saveRun(ts, {
         taskId: task.id,
@@ -299,6 +302,7 @@ export class ValidationService {
         ledger: { category: 'reflex_shadow', label: `Shadow Reflex run ${sid}` },
         ids: this.p.ids,
         now: this.p.now(),
+        metrics: this.p.metrics,
       });
       const comparison = compareRuns(digestFromRun(baseRow), digestFromRun(reflexRow));
       ts.comparisons.insert(ts.tenantId, {

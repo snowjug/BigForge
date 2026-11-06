@@ -44,13 +44,11 @@ export function registerOpsRoutes(app: FastifyInstance, platform: Platform): voi
     const a = requireActor(req);
     assertCan(a, 'view_audit');
     const q = parseBody(AuditQuery, req.query);
-    const page = platform.store
-      .forTenant(a.tenantId)
-      .listAudit({
-        limit: q.limit,
-        ...(q.cursor ? { cursor: q.cursor } : {}),
-        ...(q.action ? { action: q.action } : {}),
-      });
+    const page = platform.store.forTenant(a.tenantId).listAudit({
+      limit: q.limit,
+      ...(q.cursor ? { cursor: q.cursor } : {}),
+      ...(q.action ? { action: q.action } : {}),
+    });
     return {
       ...page,
       items: page.items.map<AuditEventDto>((e) => ({
