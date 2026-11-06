@@ -7,25 +7,25 @@
 
 | Field | Value |
 |---|---|
-| Last updated (UTC) | 2026-11-06T08:45Z |
+| Last updated (UTC) | 2026-11-06T09:05Z |
 | Branch | `main` (local; **not pushed**) |
 | Remote | `origin` → `https://github.com/snowjug/BigForge.git` (confirmed) |
 | Base commit | `a879b60` docs: define BigForge proof-of-concept vision |
-| Checkpoint commits | `397f1cc` foundation + core engine · `ab1d00f` persistence, services, demo director · `bed996c` HTTP API + design brief |
-| Active milestone | **M4 (premium UI)**; M1–M3 backend complete and validated |
+| Checkpoint commits | `397f1cc` foundation + core engine · `ab1d00f` persistence, services, demo director · `bed996c` HTTP API + design brief · `dcd8f32` observability, worker, build + demo verification · `462524b` engine/provider/hardening/lab tests + architecture, metrics, security, formats docs · `c786654` integrity test, Playwright config, bundle e2e · `d2eec9e` CSP doc fix |
+| Active milestone | **M4 (premium UI)**; M1–M3 backend complete and validated; M7 backend tests complete (108 + integrity) |
 | Classification target | HACKATHON-READY |
 
 ## What exists and works (validated, see VALIDATION_LEDGER.md)
 
-- `packages/schemas`, `security`, `providers`, `core` (engine), `platform` (DB, services, demo director), `synthetic-labs/monorepo-build` (forge-ci toolchain + scenarios + operator pack), `apps/api` (Fastify, 14 integration tests).
-- The full 25-step demo runs headlessly through the real services in ~35 s: `Platform.demo.perform(actor, 25)`; over HTTP: `POST /api/demo/steps/25/perform` (reviewer session).
+- `packages/schemas`, `security`, `providers`, `core` (engine), `platform` (DB, services, demo director), `observability`, `synthetic-labs/monorepo-build` (forge-ci toolchain + scenarios + operator pack), `apps/api` (Fastify, 14 integration tests), `apps/worker`.
+- The full 25-step demo runs headlessly through the real services in ~35 s: `Platform.demo.perform(actor, 25)`; over HTTP: `POST /api/demo/steps/25/perform` (reviewer session). `npx tsx scripts/demo-verify.ts` asserts the headline results.
 - Real server: `PORT=4747 npx tsx apps/api/src/main.ts` (health, login, system verified with curl).
 
 ## In progress / next
 
-1. **Web UI** (`apps/web`): placeholder only. Design brief: [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). API contract: `packages/schemas/src/api.ts` + `apps/api/src/routes/*.ts`.
-2. Azure/CI/Docker assets are being authored by a background agent (allowlist: `infra/**`, `.github/workflows/**`, `Dockerfile`, `.dockerignore`, `docs/AZURE.md`, `scripts/azure-*.sh`).
-3. Still to write: `scripts/build-server.mjs`, `scripts/demo.mjs`, `scripts/demo-verify.ts`, `scripts/scan-secrets.mjs`, `apps/worker`, `packages/observability`, Playwright config + e2e, README/docs set.
+1. **Web UI** (`apps/web`) is being built by background agents (foundation → three page agents). Design brief: [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). API contract: `packages/schemas/src/api.ts` + `apps/api/src/routes/*.ts`.
+2. Azure/CI/Docker assets are being authored by a background agent (allowlist: `infra/**`, `.github/workflows/**`, `Dockerfile`, `.dockerignore`, `docs/AZURE.md`, `scripts/azure-*.sh`). Files exist but are **uncommitted and unreviewed** until the agent reports.
+3. Still to do: Playwright critical-flow + accessibility e2e (config and `e2e/bundle.spec.ts` exist), visual validation, container build, README + screenshots + demo guide, release gate, push.
 
 Exact next command: `npm run dev` (API http://127.0.0.1:4747 + Vite http://127.0.0.1:5173), then sign in as `grace@acme.test` / `forge-demo`.
 
