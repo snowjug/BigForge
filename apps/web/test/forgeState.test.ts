@@ -16,6 +16,14 @@ describe('describeForge', () => {
     const state = describeForge(cold);
     expect(state.stage).toBeNull();
     expect(state.headline).toBe('The forge is cold.');
+    expect(state.detail).toContain('guided demo');
+  });
+
+  it('does not point at the guided demo where it is unavailable (production mode)', () => {
+    const state = describeForge(cold, { demo: false });
+    expect(state.headline).toBe('The forge is cold.');
+    expect(state.detail).not.toContain('guided demo');
+    expect(state.detail).toContain('Run Console');
   });
 
   it('walks the loop from observing to executing', () => {

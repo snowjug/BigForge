@@ -31,7 +31,10 @@ const noun = (n: number, one: string, many = `${one}s`): string => `${n} ${n ===
  * Names where the forge is right now, from the latest evidence outwards: drift beats an active Reflex,
  * which beats validation, which beats learning, which beats just watching.
  */
-export function describeForge(facts: ForgeFacts): ForgeState {
+export function describeForge(
+  facts: ForgeFacts,
+  { demo = true }: { demo?: boolean } = {},
+): ForgeState {
   const { versionStatuses: statuses } = facts;
   const active = count(statuses, 'active', 'watch');
 
@@ -94,6 +97,8 @@ export function describeForge(facts: ForgeFacts): ForgeState {
   return {
     stage: null,
     headline: 'The forge is cold.',
-    detail: 'Nothing has run yet. The guided demo lights it step by step, offline.',
+    detail: demo
+      ? 'Nothing has run yet. The guided demo lights it step by step, offline.'
+      : 'Nothing has run yet. Send a failure from the Run Console to light it.',
   };
 }

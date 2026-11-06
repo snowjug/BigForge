@@ -535,6 +535,7 @@ function DemoLadder() {
 
 /** `/`: the Forge Floor. Where is the forge right now? */
 export default function HomePage() {
+  const demo = useDemo();
   const reflexes = useReflexes();
   const families = useFamilies();
   const runs = useRuns({ limit: 1 });
@@ -542,15 +543,18 @@ export default function HomePage() {
   const drift = useDrift();
 
   const versions = (reflexes.data?.reflexes ?? []).flatMap((reflex) => reflex.versions);
-  const forge = describeForge({
-    runs: runs.data?.total ?? 0,
-    families: families.data?.families.length ?? 0,
-    versionStatuses: versions.map((version) => version.status),
-    liveExecutions: economics.data?.reuse.liveExecutions ?? 0,
-    driftChecks: drift.data?.checks.length ?? 0,
-    latestDriftDetected: drift.data?.checks[0]?.verdict.drift ?? null,
-    proposedMutations: drift.data?.mutations.filter((m) => m.status === 'proposed').length ?? 0,
-  });
+  const forge = describeForge(
+    {
+      runs: runs.data?.total ?? 0,
+      families: families.data?.families.length ?? 0,
+      versionStatuses: versions.map((version) => version.status),
+      liveExecutions: economics.data?.reuse.liveExecutions ?? 0,
+      driftChecks: drift.data?.checks.length ?? 0,
+      latestDriftDetected: drift.data?.checks[0]?.verdict.drift ?? null,
+      proposedMutations: drift.data?.mutations.filter((m) => m.status === 'proposed').length ?? 0,
+    },
+    { demo: demo.available },
+  );
 
   return (
     <Page title="Forge Floor">
