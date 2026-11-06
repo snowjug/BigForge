@@ -1,11 +1,18 @@
-// Lightweight secret scan over tracked files. Complements (does not replace) provider-side secret scanning.
+// Lightweight secret scan over tracked and untracked-but-not-ignored files. Complements (does not replace) provider-side secret scanning.
 // Known synthetic demo tokens are allow-listed explicitly.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
+const files = execFileSync(
+  'git',
+  ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+  {
+    cwd: root,
+    encoding: 'utf8',
+  },
+)
   .split('\0')
   .filter(Boolean);
 
@@ -67,4 +74,4 @@ if (findings.length > 0) {
   );
   process.exit(1);
 }
-console.log(`Secret scan clean: ${files.length} tracked files checked.`);
+console.log(`Secret scan clean: ${files.length} files checked (tracked + untracked, not ignored).`);
