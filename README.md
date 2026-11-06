@@ -1,720 +1,253 @@
 <div align="center">
 
+<img src="docs/screenshots/01-forge-floor.png" alt="BigForge Forge Floor: the forge pipeline, guided demo entry and labelled key figures" width="920">
+
 # BigForge
 
 **Forge reasoning once. Reuse it without paying to rethink it.**
 
 BigForge turns repeated AI reasoning into verified executable **Reflexes**,<br>so models are called only at the edge of uncertainty.
 
-![Status: design / proof of concept](https://img.shields.io/badge/status-design%20%2F%20proof%20of%20concept-orange?style=flat-square) ![Hackathon: Zero-Waste AI](https://img.shields.io/badge/hackathon-Zero--Waste%20AI-0969da?style=flat-square)
-
-[Thesis](#the-thesis) · [Comparison](#how-bigforge-compares) · [How it works](#how-bigforge-works) · [Demo](#the-5-minute-bigforge-demo) · [MVP](#mvp-scope) · [Evaluation](#evaluation-strategy) · [Status](#repository-status)
+[Try it](#try-it) · [The guided demo](#the-guided-demo) · [How it works](#how-it-works) · [What the numbers mean](#what-the-numbers-mean) · [Security](#security-and-responsible-ai) · [Azure](#azure) · [Limitations](#limitations)
 
 </div>
 
 > [!IMPORTANT]
-> **STATUS: DESIGN / PROOF OF CONCEPT.** This repository contains the specification only: this README. No BigForge code exists yet and nothing has been benchmarked. Every performance figure in this document is either an **ILLUSTRATIVE EXAMPLE** or a *proposed* measurement. Built for the *Hack for Tokenomics: The Zero-Waste AI Challenge* track.
+> **Status: working proof of concept** for the *Hack for Tokenomics: The Zero-Waste AI Challenge*. The whole product runs **offline** on a **synthetic monorepo lab** with a **deterministic provider**: a scripted stand-in for a model, always labelled as such. Every figure is tagged `synthetic`, `simulated`, `estimated`, `replay-measured` or `measured`. Nothing here is benchmarked against real models, and **nothing is deployed to Azure**. Read [Limitations](#limitations) before drawing conclusions.
 
 ## BigForge in 30 seconds
 
-AI agents often re-solve problems they have already solved: read the logs, find the failing package, pick a diagnostic, verify the fix. Each run pays the full reasoning price again.
+AI agents re-solve problems they have already solved: read the logs, find the failing package, choose a diagnostic, verify the fix. Every run pays the full reasoning price again.
 
-BigForge watches *successful* runs, finds the steps that never change, and compiles them into a **Reflex**: a versioned, testable, constrained, executable workflow derived from previously successful agent behavior. When a task from the same family returns, the known steps run through the Reflex. A model is consulted only for what is genuinely unresolved, and only with the evidence needed to answer it.
+BigForge watches _successful, verified_ runs, finds the steps that never change, and compiles them into a **Reflex**: a versioned, testable, permission-constrained workflow. When a task from the same family returns, the known steps run locally with **no model call**. A model is consulted only for the one decision that is genuinely unresolved, and only with the evidence that decision needs. If anything is off, the Reflex stops and the ordinary agent takes over. If the world changes, trust falls and the Reflex returns to shadow mode on its own.
 
 ```mermaid
-flowchart TB
+flowchart LR
     subgraph TRAD["Traditional agent: think every time"]
         direction LR
-        T1([Task]) --> T2[Context] --> T3[Model] --> T4[Reason] --> T5[Tools] --> T6[Model] --> T7[Verification] --> T8([Result])
+        T1([Task]) --> T2[Model] --> T3[Tools] --> T4[Model] --> T5[Tools] --> T6[Model] --> T7([Result])
     end
     subgraph BF["BigForge: reuse what is known"]
         direction LR
-        B1([Task]) --> B2[Reflex match] --> B3[Known work] --> B4[Uncertainty boundary] --> B5[Minimal model call] --> B6[Verification] --> B7([Result])
+        B1([Task]) --> B2[Reflex match] --> B3[Known steps, no model] --> B4{{Uncertainty boundary}} --> B5[One bounded model call] --> B6[Independent verification] --> B7([Result])
     end
     TRAD ~~~ BF
-    classDef plain fill:#f6f8fa,stroke:#8c959f,color:#1f2328;
     classDef spend fill:#bc4c00,stroke:#953800,color:#ffffff;
-    classDef known fill:#1a7f37,stroke:#116329,color:#ffffff;
-    classDef edge fill:#8250df,stroke:#6639ba,color:#ffffff;
-    classDef check fill:#0969da,stroke:#0550ae,color:#ffffff;
-    class T1,T2,T5,T8,B1,B7 plain;
-    class T3,T4,T6,B5 spend;
+    classDef known fill:#1f6feb,stroke:#0b4cb3,color:#ffffff;
+    classDef edge fill:#bf8700,stroke:#7d5a00,color:#ffffff;
+    classDef check fill:#1a7f37,stroke:#116329,color:#ffffff;
+    class T2,T4,T6,B5 spend;
     class B2,B3 known;
     class B4 edge;
-    class T7,B6 check;
-    style TRAD fill:none,stroke:#8c959f,stroke-dasharray:4 4;
-    style BF fill:none,stroke:#1a7f37;
+    class B6 check;
 ```
 
-🟧 model tokens spent · 🟩 known work, no model · 🟪 uncertainty boundary · 🟦 verification
+> **Think every time** → **reuse what is known; think only at the edge of uncertainty.**
 
-> **THINK EVERY TIME** → **REUSE WHAT IS KNOWN. THINK ONLY AT THE EDGE OF UNCERTAINTY.**
+## Try it
 
-## The problem
+Requirements: **Node.js 24+** (BigForge uses the built-in `node:sqlite`) and npm 11. No network access, accounts or API keys are needed after `npm install`.
 
-Agent workflows often re-derive procedures that were already worked out: the same logs read, the same diagnostics run in the same order, routine decisions re-made, a large model asked to parse text a script could parse.
+```bash
+git clone https://github.com/snowjug/BigForge.git
+cd BigForge
+npm install
+npm run demo        # builds the web app and server if needed, then serves http://127.0.0.1:4747
+```
 
-Most token-efficiency work optimizes *how* a model reasons: compress prompts, shorten tool output, retrieve memories, cache responses, route between models, reduce context, summarize history. These matter, and BigForge is meant to coexist with them. But they share one premise: **a model will be called.**
+Open <http://127.0.0.1:4747>, sign in as **Grace** (reviewer) and choose **Start guided demo** on the Forge Floor. The demo identities are public by design and exist only in demo mode:
 
-BigForge questions the premise:
+| Persona               | Role     | Can do                                                    |
+| --------------------- | -------- | --------------------------------------------------------- |
+| `grace@acme.test`     | reviewer | everything below, and **promote** a Reflex (the human step) |
+| `ada@acme.test`       | admin    | settings, demo reset                                      |
+| `linus@acme.test`     | operator | run tasks, replay, shadow, canary (cannot promote)        |
+| `vera@acme.test`      | viewer   | read-only                                                 |
+| `gus@globex.test`     | admin    | a different tenant: cannot see Acme's data                |
 
-> Why invoke AI at all for the parts of a workflow that have already been learned, validated, and can now be executed deterministically?
+Password for all of them: `forge-demo`.
 
-*Hypothesis, not a result:* in routine engineering workflows, a meaningful share of agent reasoning is repetition. Measuring that share is part of the proof of concept.
+| Command                | What it does                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run demo`         | production build + server on `127.0.0.1:4747` (`PORT`, `BIGFORGE_DATA_DIR` are respected)      |
+| `npm run dev`          | API (watch mode) + Vite dev server with hot reload on `127.0.0.1:5173`                         |
+| `npm run demo:verify`  | headless check of all 25 demo steps through the real HTTP API; exits non-zero on any failure   |
+| `npm test`             | unit and integration tests (Vitest)                                                            |
+| `npm run test:e2e`     | Playwright end-to-end and accessibility tests against the production bundle (`npm run build` first; `npx playwright install chromium` once) |
+| `npm run validate`     | format check, lint, strict typecheck, tests and build                                          |
 
-## The thesis
+Or with Docker: `docker build -t bigforge . && docker run --rm -p 4747:4747 bigforge`.
 
-1. **Successful agent behavior contains invariants.** Across variants of a task, some steps never change; others depend on judgment.
-2. **Invariants can be compiled** into constrained, typed, versioned, testable procedures: **Reflexes**.
-3. **Models belong at the uncertainty boundary:** the smallest unresolved decision plus the minimum supporting evidence.
-4. **Trust is earned and expires.** Reflexes are validated before use, monitored after, and demoted when the world changes.
+## The guided demo
 
-BigForge is *designed to reduce repeated model reasoning*. Whether it does so without degrading correctness is exactly what the proof of concept must show.
+One story, 25 steps, in five scenes, driven by a presenter bar (`Back`, `Next`, `Restart`, `Exit`, arrow keys). Every step runs real code against a synthetic repository; the bar only navigates and triggers actions.
 
-## Why this is different
+| Scene              | Steps | What happens                                                                                                                                                 |
+| ------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Cold start**     | 1–3   | A monorepo build failure arrives. No Reflex exists, so the baseline agent solves it, calling the model on every turn. The execution trace is captured.        |
+| **Learning**       | 4–7   | Four related failures follow. BigForge groups them into a task family, aligns the traces, separates invariant from variable steps and compiles a candidate Reflex. |
+| **Validation**     | 8–11  | Historical traces are replayed against the candidate; it runs in Shadow Brain mode beside the baseline; the comparison is shown; **a human reviewer promotes it**. |
+| **The killer moment** | 12–20 | A new, deliberately ambiguous task arrives. The Reflex is selected, known steps run with **zero** model calls, one Uncertainty Boundary is reached, the Token Firewall selects the minimum evidence, one bounded call resolves it, execution continues and an independent verifier confirms the result. Baseline and BigForge are compared. |
+| **Drift**          | 21–25 | A synthetic toolchain upgrade changes log ordering. The Drift Canary detects disagreement, confidence falls, the Reflex returns to Shadow automatically and a mutation is **proposed, not activated**. |
 
-BigForge is **not primarily** prompt compression, semantic caching, AI memory, RAG, model routing, a cheaper-model selector, an LLM proxy, a prompt optimizer, or another coding agent. It is designed to sit beside all of them.
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/03-uncertainty-lens.png" alt="Uncertainty Lens: the evidence the Token Firewall observed versus the few chunks it let through"><br><sub><b>Uncertainty Lens.</b> Everything observed (faded) versus the few chunks the Token Firewall sent to the model.</sub></td>
+<td width="50%"><img src="docs/screenshots/04-baseline-vs-reflex.png" alt="Synchronized baseline versus Reflex execution lanes"><br><sub><b>Baseline vs Reflex.</b> Two lanes on one virtual time axis: model calls sized by tokens against local steps.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/05-reflex-dna.png" alt="Reflex DNA: aligned traces, conservation per behaviour and the compiled steps"><br><sub><b>Reflex DNA.</b> Source traces aligned by behaviour; solid columns are invariant, hatched columns vary.</sub></td>
+<td><img src="docs/screenshots/09-drift-fracture.png" alt="Drift fracture across the diverging step of the Forge Graph, with a proposed mutation"><br><sub><b>Drift fracture.</b> The step that diverged, the canary grid and a mutation that is proposed but not activated.</sub></td>
+</tr>
+</table>
 
-| Approach | What it changes |
-|---|---|
-| Prompt compression | The AI still reasons, but receives fewer tokens. |
-| Memory | The AI retrieves previous knowledge, but generally still interprets and reasons over it. |
-| Semantic caching | Reuses a previous answer when requests are sufficiently similar. |
-| Model routing | Selects which model should reason. |
-| **BigForge** | Attempts to convert validated, repeatable portions of AI reasoning into executable Reflexes, so those portions of future workflows may not need model reasoning at all. |
+If you are presenting, see the [demo guide](docs/DEMO_GUIDE.md) (five-minute script, two-minute fallback, thirty-second pitch) and the [judge Q&A](docs/JUDGE_QA.md).
 
-> Compression makes thinking cheaper.\
-> Memory makes remembering cheaper.\
-> Routing chooses who thinks.\
-> **BigForge asks whether thinking needs to happen again.**
-
-BigForge explores a different layer of AI efficiency: **compiling validated repeated execution rather than only optimizing the model call.**
-
-## How BigForge compares
-
-Different layers, mostly complementary. The tables cover concept categories plus three public projects, summarized from their own documentation on 2026-11-02. They are context, not a ranking: cells describe each approach's stated purpose, not a limitation, and no benchmark comparison is made or implied.
-
-| Approach | AI still reasons? | Reuses knowledge? | Reuses deterministic execution? | Handles new inputs? | Can eliminate model calls? |
-|---|---|---|---|---|---|
-| Prompt / context compression | Yes | No | No | Yes | No |
-| Semantic caching | On a miss | Yes, answers | No | If similar | On a hit |
-| RAG / memory | Yes | Yes | No | Yes | No |
-| Model routers | Yes | No | No | Yes | No |
-| Agent token trimming | Yes | Partly | Partly | Yes | No |
-| 🔨 **BigForge** | **Only at the boundary** | **Yes, as procedures** | **Yes** | **Within a task family** | **Designed to; unproven** |
-
-| Approach | Primary optimization | Relationship to BigForge |
-|---|---|---|
-| Prompt / context compression | Fewer input tokens per call | Complementary: shrinks whatever must still be sent |
-| Semantic caching | Reuse a prior answer for a similar request | Different: BigForge runs a verified procedure on the *current* inputs instead of returning a past output |
-| RAG / memory, e.g. [MemPalace](https://github.com/MemPalace/mempalace) | Recall prior knowledge (MemPalace: verbatim storage with semantic search) | Complementary: memory recalls; BigForge asks whether reasoning is needed |
-| Model routers, e.g. [GitHub Copilot Fusion](https://docs.github.com/en/copilot/concepts/models/copilot-fusion) | Choose models and an execution pattern per task | Complementary: can serve uncertainty-boundary calls |
-| Agent token trimming, e.g. [Caveman](https://github.com/JuliusBrussee/caveman) | Shorter output, smaller tool and log input, model and effort choice, reusable scripts | Complementary; reusable scripts are the closest neighbor |
-| 🔨 **BigForge** | **Compile validated repeated execution into Reflexes** | **Proposed: unproven until measured** |
-
-Skill libraries, workflow memory, record-and-replay, and programming by demonstration are older relatives of this idea. BigForge's proposed contribution is the *governance loop* around reusable execution: multi-trace compilation, uncertainty boundaries, shadow validation, verification-first completion, and depreciation.
-
-## How BigForge works
+## How it works
 
 One loop: **observe → fingerprint → compile → validate → execute → escalate → evolve.**
 
-1. **Observe.** Capture traces of successful agent runs: tool calls, evidence, verification results, token cost.
-2. **Fingerprint.** Assign each task to a candidate *task family* by intent, toolchain, repository shape, failure type, error patterns, required permissions, files affected, and past Reflex success, not by exact prompt. "Why is CI red?", "Find my build failure.", "What is the first real error?" and "Which workspace broke?" could belong to one family. A false match is the most dangerous failure, so *false Reflex match rate* is a first-class metric.
-3. **Compile.** Turn repeated traces into a *candidate* Reflex.
-4. **Validate.** Replay, shadow-execute, then require human approval.
-5. **Execute.** Run known steps through the Reflex in a sandbox. Completion requires verification.
-6. **Escalate.** Cross the uncertainty boundary only for unresolved decisions, through the Token Firewall.
-7. **Evolve.** Outcomes feed mutation, drift detection, and depreciation.
-
-If nothing matches, the agent runs exactly as it would without BigForge, and that trace becomes learning material.
-
-### The Reflex Compiler
-
-```text
-AI solves task ─▶ trace captured ─▶ repeated pattern discovered
-  ─▶ task-specific detail removed ─▶ deterministic operations identified
-  ─▶ judgment-dependent operations identified ─▶ safety boundaries generated
-  ─▶ CANDIDATE REFLEX ─▶ replay validation ─▶ shadow execution
-  ─▶ human approval ─▶ ACTIVE REFLEX
-```
-
-### Cold-start protection
-
-The first successful trace never becomes an active Reflex. Promotion requires multiple examples, variation analysis, success/failure comparison, invariant-step discovery, safety analysis, replay testing, and shadow validation. The aim is to avoid overfitting automation to one lucky run.
-
-### Verification-first completion
-
-A workflow is not successful because the model said so, a command exited with code zero, or files changed. A Reflex declares explicit evidence: the relevant test passes, the original failure no longer reproduces, the build succeeds, the expected artifact exists, no unrelated files changed, security policy passes, or expected API behavior is observed.
-
-> Execution without verification is automation.\
-> Execution with evidence is a Reflex.
-
-## Reflex lifecycle
-
-Reflexes are earned, not assumed, and trust decays.
+1. **Observe.** Capture vendor-neutral traces ([`bigforge.trace/v1`](docs/FORMATS.md)): tool calls, evidence, verification, token usage. Secrets are redacted at capture.
+2. **Fingerprint.** Assign each task to a family by intent, toolchain, failure type, error classes and affected workspaces, not by exact prompt. A false match is the most dangerous failure, so hard gates (evidence present, same intent, toolchain and failure type, only known error classes) must pass before a similarity score is even considered, and the _false-match rate_ is a measured, labelled metric.
+3. **Compile.** Align several verified traces, separate invariant from variable behaviour, and bind each model decision to a deterministic **operator** from a typed library _only if that operator reproduces the recorded decision on every trace_. Decisions with no consistent operator stay as Uncertainty Boundaries. The compiler records the assumptions it had to make so a reviewer can read them. It composes operators; it does not synthesise arbitrary code.
+4. **Validate.** Replay history, run **Shadow Brain** beside the baseline, then require a human reviewer. Promotion is gated on replay agreement, shadow volume and variety, zero safety violations and a minimum agreement, and the server re-checks the evidence and the content hash.
+5. **Execute.** Known steps run in the sandbox under the Reflex's _own_ declared permissions. Anything unexpected (failed precondition, denied action, unexpected output, failed verification) stops the Reflex; it never improvises.
+6. **Escalate.** At an **Uncertainty Boundary** the **Token Firewall** answers seven questions before any call may exist (what is unknown, why not a Reflex, minimum context, capability, budget, evidence required, how it will be verified), selects the minimum evidence, screens it for injected instructions, picks the smallest adequate model tier and caps calls at three per run. The answer must parse and be one of the offered options.
+7. **Evolve.** A **Drift Canary** keeps comparing the Reflex with the baseline. When agreement falls, confidence drops and the Reflex demotes itself to Shadow. A **mutation** may be proposed with a regression replay, but never activated without a reviewer.
 
 ```mermaid
-flowchart LR
-    S0(["Candidate"]) --> S1["Replay"]
-    S1 -->|replay passes| S2["Shadow"]
-    S2 -->|enough evidence| S3["Approval"]
-    S3 -->|human approves| S4(["Active"])
-    S4 -->|trust declines| S5["Watch"]
-    S5 -->|trust recovers| S4
-    S5 -->|drift confirmed| S2
-    S2 -->|persistent disagreement| S6["Recompile"]
-    S6 -->|new version| S2
-    S2 -->|cannot be repaired| S7["Deprecated"] --> S8(["Retired"])
-    classDef plain fill:#f6f8fa,stroke:#8c959f,color:#1f2328;
-    classDef good fill:#1a7f37,stroke:#116329,color:#ffffff;
-    classDef warn fill:#bf8700,stroke:#9a6700,color:#ffffff;
-    classDef dead fill:#6e7781,stroke:#57606a,color:#ffffff;
-    class S0,S1,S3 plain;
-    class S4 good;
-    class S2,S5,S6 warn;
-    class S7,S8 dead;
+stateDiagram-v2
+    direction LR
+    [*] --> Candidate
+    Candidate --> Replay: compiled
+    Replay --> Shadow: replay passes
+    Shadow --> Approval: evidence gate met
+    Approval --> Active: human approves
+    Approval --> Shadow: human rejects
+    Active --> Watch: trust declines
+    Watch --> Active: trust recovers
+    Watch --> Shadow: drift confirmed (automatic)
+    Shadow --> Recompile: persistent disagreement
+    Recompile --> Shadow: new version
+    Shadow --> Deprecated: cannot be repaired
+    Deprecated --> Retired
 ```
 
-Green is trusted, amber is on probation, gray is end of life.
+**Verification-first completion.** A task is not done because a model said so or a command exited 0. An independent verifier checks that the original failure is gone, the relevant tests pass, no unrelated files changed and the security policy holds, for the baseline agent and the Reflex alike.
 
-**Mutation.** When an unfamiliar variation is solved through AI escalation, the result becomes a new version, never an in-place edit:
+**Why this is different from compression, memory, caching and routing.** Those make a model call cheaper or better informed. BigForge asks whether the call needs to exist. They compose: the Token Firewall compresses and routes the residual call, caching still applies to it, and memory can supply evidence. A fuller comparison and the original reasoning are in [docs/VISION.md](docs/VISION.md).
 
-```text
-Reflex v3 ─▶ novel variation ─▶ AI escalation ─▶ successful resolution
-  ─▶ candidate mutation ─▶ regression replay ─▶ shadow validation
-  ─▶ approval ─▶ Reflex v4
-```
-
-Every Reflex keeps its version history and a rollback target.
-
-## What a Reflex looks like
-
-A Reflex conceptually contains: name, version, task family, typed inputs, preconditions, deterministic steps, tool permissions, expected outputs, verification rules, safety constraints, uncertainty boundaries, escalation conditions, compatibility information, confidence, validation history, and rollback information.
-
-```yaml
-# Illustrative sketch. Field names and values are placeholders, not a finalized schema.
-reflex: first-causal-error
-version: 3.1.0
-task_family: monorepo-build-failure
-status: active              # candidate | shadow | active | watch | deprecated | retired
-
-inputs: { ci_log: { type: file, max_bytes: 5000000 }, repo_root: { type: path } }
-preconditions: ["workspace_manager in [pnpm, npm]", 'failure_type == "build"']
-
-steps:
-  - { id: normalize, run: local.normalize_log }
-  - { id: locate,    run: local.first_causal_error }
-  - { id: map,       run: local.workspace_owner }
-  - { id: diagnose,  run: local.focused_diagnostic }
-  - { id: decide,    boundary: model, budget_tokens: 1500 }  # the only judgment step
-  - { id: verify,    run: local.rerun_failing_target }
-outputs: { root_failure: workspace_id, report: markdown }
-
-permissions:
-  read: ["repo/**"]
-  write: ["repo/packages/**"]
-  commands: ["pnpm build", "pnpm test"]
-  limits: { network: false, secrets: none, timeout_s: 300 }
-verify: [original_failure_gone, relevant_tests_pass, no_unrelated_changes]
-escalate_when:                  # example thresholds, configurable
-  - locate.confidence < 0.8
-  - no_diagnostic_match
-compatibility: { node: ">=20", pnpm: ">=9" }
-
-# illustrative values
-confidence: 0.91
-validation: { replays: 24, shadow_runs: 12, agreement: 0.96 }
-rollback_to: 3.0.2
-```
-
-**Composition.** Small Reflexes can compose into larger workflows, which is preferable to one opaque mega-workflow: *parse CI failure* + *locate causal error* + *map repository ownership* + *run focused diagnostic* + *verify repair*.
-
-## Uncertainty boundaries
-
-BigForge does not choose between *AI* and *no AI*. It **decomposes execution.**
-
-**ILLUSTRATIVE EXAMPLE: a 14-step workflow**
-
-```mermaid
-flowchart LR
-    S1["Steps 1-7<br/>known: Reflex"] --> S2["Step 8<br/>validation: local"]
-    S2 --> S3["Steps 9-12<br/>known: Reflex"]
-    S3 --> S4["Step 13<br/>ambiguous decision: AI"]
-    S4 --> S5["Step 14<br/>validation: local"]
-    classDef reflex fill:#1a7f37,stroke:#116329,color:#ffffff;
-    classDef local fill:#0969da,stroke:#0550ae,color:#ffffff;
-    classDef ai fill:#bc4c00,stroke:#953800,color:#ffffff;
-    class S1,S3 reflex;
-    class S2,S5 local;
-    class S4 ai;
-```
-
-**11** known steps → Reflex execution · **2** deterministic validations → local execution · **1** ambiguous architectural decision → AI reasoning.
-
-Instead of sending the whole repository and history to a model, BigForge aims to send only the unresolved decision and the minimum evidence needed to settle it. The size of that boundary is itself a metric: a shrinking boundary suggests the system is learning.
-
-> **Spend tokens on uncertainty, not repetition.**
-
-## Killer features
-
-Twenty ideas in four groups. **POC** is the *proposed* role in the first proof of concept: *Core* (in the 13-step MVP), *Basic* (simplified), *Stretch* (optional demo extension), *Later* (outside the MVP).
-
-| Feature | Idea | POC |
-|---|---|---|
-| **Learn** | | |
-| [Reflex Compiler](#the-reflex-compiler) | Successful traces become candidate Reflexes | Core |
-| Semantic Task Fingerprinting | Match task *families*, not exact prompts ([how](#how-bigforge-works)) | Core |
-| [Cold-Start Protection](#cold-start-protection) | The first lucky trace never becomes a Reflex | Core |
-| [Reflex Mutation](#reflex-lifecycle) | AI-solved variations become new, validated versions | Later |
-| Cross-Model Distillation | A strong model's solved task can seed a Reflex that a smaller model, or none, runs later. Learns only from visible traces, actions, evidence, and outcomes, never model internals | Later |
-| **Execute** | | |
-| [Uncertainty Boundary](#uncertainty-boundaries) | Only the unresolved decision reaches a model | Core |
-| [Token Firewall](#token-firewall) | No unexplained model calls | Basic |
-| [Reflex Composition](#what-a-reflex-looks-like) | Small Reflexes compose into larger workflows | Later |
-| [Safe Reflex Sandbox](#safety-model) | Least-privilege execution; safety before savings | Basic |
-| [Verification-First Completion](#verification-first-completion) | Evidence, not assertion, defines success | Core |
-| **Trust** | | |
-| [Shadow Brain](#shadow-brain) | Run AI and Reflex side by side before activation | Core |
-| [Cognitive Depreciation](#cognitive-depreciation) | Trust decays; Reflexes age out | Stretch |
-| [Drift Canary](#drift-canary) | Sampled AI-versus-Reflex agreement checks | Stretch |
-| [Anti-Reflexes](#anti-reflexes) | Remember what wastes tokens or fails | Later |
-| [Reflex Registry](#reflex-registry) | Governed library with owners, versions, and evidence | Basic (local files) |
-| **Measure and see** | | |
-| [Counterfactual Replay](#counterfactual-replay) | Retrospective estimate of avoidable model calls | Core |
-| [Cognitive Reuse Ratio](#cognitive-reuse-ratio-crr) | Proposed signature metric | Core |
-| [Cognitive ROI](#cognitive-roi) | Cost to learn versus model cost avoided | Basic |
-| [Reflex Graph](#reflex-graph) | Visual execution graph that explains every node | Later |
-| [BigForge Time Machine](#bigforge-time-machine) | Visualization of learning over time | Later |
-
-## Token Firewall
-
-> **No unexplained model calls.**
-
-Before an agent may request a model call, BigForge conceptually asks:
-
-1. What remains unknown?
-2. Why can't an existing Reflex handle it?
-3. What minimum context is required?
-4. Which model capability is necessary?
-5. What is the maximum permitted token budget?
-6. What evidence must come back?
-7. How will the result be verified?
-
-The answers form a *call record* attached to the request, and policy returns one verdict:
-
-| Verdict | Meaning |
-|---|---|
-| `ALLOW` | The call is justified, minimal, and within budget |
-| `REDUCE CONTEXT` | The request carries more context than the open question needs |
-| `USE SMALLER MODEL` | A cheaper model has the required capability |
-| `USE EXISTING REFLEX` | A Reflex already covers the supposed unknown |
-| `REQUEST HUMAN APPROVAL` | The call is costly, sensitive, or touches a protected environment |
-| `DENY` | Unexplained, duplicated, over budget, or against policy |
-| `ESCALATE` | A cheaper attempt failed verification: move up to a stronger model or a person |
-
-## Shadow Brain
-
-Before a Reflex replaces AI reasoning, **run both.**
-
-```text
-AI execution     --> result A --+
-                                +--> compare --> evidence for or against activation
-Reflex execution --> result B --+
-```
-
-Compared: outcome, verification result, commands and tools used, safety violations, runtime, token consumption, and failure modes.
-
-**One successful example is not enough.** A Reflex becomes *eligible* for activation only after sufficient evidence, and a human still approves. Example gate (configurable, not validated): at least 10 shadow runs across at least 3 distinct variants, zero safety violations, and at least 95% agreement. Shadow mode costs tokens before it saves any; that cost is booked as learning investment ([Cognitive ROI](#cognitive-roi)).
-
-## Cognitive depreciation
-
-Reflexes are not trusted forever. Trust can decline when:
-
-- dependencies, APIs, or tool behavior change
-- repository structure changes
-- security policies change
-- the Reflex's success rate declines
-- shadow disagreement increases
-
-Possible actions: **Active → Watch → Shadow → Retrain / recompile → Deprecated → Retired** (see the [lifecycle](#reflex-lifecycle)). A security-policy change would suspend affected Reflexes until they are re-approved.
-
-> Automation should age like software, not masquerade as permanent intelligence.
-
-## Drift Canary
-
-Periodically send a small sample of *familiar* tasks through both the Reflex and the AI, then measure outcome agreement.
-
-**ILLUSTRATIVE EXAMPLE:** historic agreement 97%, current agreement 82%. BigForge detects the drop, lowers trust in the Reflex, and moves it back to Shadow.
-
-Sample size, cadence, and thresholds are configurable; these figures are examples, not recommendations. The canary spends tokens by design, the price of vigilance, and is budgeted like any other model call.
-
-## Anti-Reflexes
-
-BigForge should learn not only what works, but which recurring approaches waste resources or fail:
-
-- re-running identical diagnostics
-- repeatedly reading enormous logs
-- calling a large model for deterministic parsing
-- failed command sequences
-- unsafe repair strategies
-- fixes known to introduce regressions
-
-Each **Anti-Reflex** would record its evidence and a response (warn, redirect, or block), so agents are stopped before repeating a known bad path.
-
-## Counterfactual Replay
-
-Replay historical agent traces against the current Reflex library and ask:
-
-> What fraction of these historical model calls could potentially have been avoided if today's Reflexes had already existed?
-
-It would report candidate calls avoided, candidate tokens avoided, additional escalations, different verification results, safety-policy impact, and runtime differences.
-
-> [!NOTE]
-> These outputs are **RETROSPECTIVE ESTIMATES** unless measured from an actual rerun. They can overstate savings when the environment has changed since the trace was recorded, so they prioritize work; they do not prove savings.
-
-## Metrics
-
-Proposed measurements, grouped by the question they answer:
-
-- **What does it cost?** Tokens per successful task · model calls per successful task · tokens avoided · learning investment · estimated lifetime saving
-- **How much is reused?** Reflex hit rate · Reflex verification rate · escalation rate · uncertainty-boundary size
-- **Can it be trusted?** Shadow agreement · Reflex drift · human approvals · rollback rate
-
-Tokens avoided and lifetime saving are counterfactual, so they are labelled estimates unless measured.
-
-### Cognitive Reuse Ratio (CRR)
-
-```text
-CRR =  validated reusable reasoning / execution
-       ────────────────────────────────────────
-       total reasoning / execution required
-```
-
-CRR is a **proposed project metric, not an established industry standard.** Work would be weighted by what the baseline agent spent on each step, so an expensive judgment call counts more than a trivial local step.
-
-**ILLUSTRATIVE EXAMPLE:** CRR = 82% would mean approximately 82% of a workflow was completed through previously validated reusable execution rather than fresh model reasoning. CRR is only meaningful beside verification pass rate: reusing the wrong thing confidently yields a high CRR and a bad outcome.
-
-### Cognitive ROI
-
-Cost to learn and validate a Reflex, versus the cumulative future model cost it avoids:
-
-```text
-Cognitive ROI = (cost avoided − cost to learn) ÷ cost to learn
-```
-
-**ILLUSTRATIVE EXAMPLE** (assumes about 10,000 tokens avoided per execution across 31 executions):
-
-| | Tokens |
-|---|---|
-| Learning investment | 48,000 |
-| Subsequent estimated savings | 310,000 |
-| **Net** | **+262,000** |
-| Cognitive ROI | ≈ 5.5× |
-| Break-even | execution #5 |
-
-## Safety model
-
-> [!WARNING]
-> Saving tokens must never come at the cost of safety. When they conflict, safety wins.
-
-Candidate and active Reflexes must run under constrained permissions:
-
-- read-only by default
-- allowlisted commands only
-- file boundaries
-- network controls
-- execution timeouts and resource limits
-- secrets unavailable
-- destructive Git commands blocked
-- protected environments require approval
-
-Reflexes must not improvise. A failed precondition, an unexpected output, or a failed verification stops the Reflex and hands control to the ordinary agent or a person. Safety violations disqualify a Reflex in Shadow validation; they are not traded against savings.
-
-## Target architecture
-
-*Proposed. Nothing below is implemented; dashed outlines mean planned.*
+### Architecture
 
 ```mermaid
 flowchart TB
-    A["Agent / IDE"] --> G["SDK / gateway"]
-    G --> MATCH
-    subgraph MATCH["1. Fingerprint and match"]
-        direction LR
-        F["Task<br/>Fingerprinter"] --> M["Reflex<br/>Matcher"]
-    end
-    MATCH --> RUN
-    subgraph RUN["2. Decide and execute"]
-        direction LR
-        D(["Decision<br/>layer"]) -->|known work| E["Reflex<br/>Engine"] --> S["Safe<br/>sandbox"] --> V["Verifier"]
-        D -->|unresolved| U["Uncertainty<br/>boundary"] --> TF["Token<br/>Firewall"] --> R["Model<br/>Router"] --> V
-    end
-    RUN --> LEARN
-    subgraph LEARN["3. Learn and govern"]
-        direction LR
-        T[("Trace<br/>Store")] --> C["Reflex<br/>Compiler"] --> SV["Shadow<br/>Validator"] --> REG[("Reflex<br/>Registry")] --> DM["Drift<br/>Monitor"]
-    end
-    classDef planned fill:#f6f8fa,stroke:#57606a,color:#1f2328,stroke-dasharray:6 4,stroke-width:1.5px;
-    class A,G,F,M,D,E,S,U,TF,R,V,T,C,SV,REG,DM planned;
-    style MATCH fill:none,stroke:#8c959f;
-    style RUN fill:none,stroke:#8c959f;
-    style LEARN fill:none,stroke:#8c959f;
+    WEB["apps/web<br/>React UI, presenter, signature visualizations"] -->|"HTTP + session cookie"| API
+    API["apps/api<br/>Fastify, RBAC, CSRF, zod, helmet"] --> PLAT
+    WORKER["apps/worker<br/>optional external job runner"] --> PLAT
+    PLAT["packages/platform<br/>services, SQLite persistence, 25-step demo director, audit chain"] --> CORE
+    PLAT --> LAB
+    CORE["packages/core<br/>recorder, agent loop, compiler, executor, Token Firewall, drift, economics"] --> SEC
+    CORE --> PROV
+    SEC["packages/security<br/>sandbox exec, redaction, RBAC, hash chain"]
+    PROV["packages/providers<br/>deterministic provider, optional Azure OpenAI / OpenAI-compatible"]
+    LAB["synthetic-labs/monorepo-build<br/>forge-ci toolchain, scenarios, operator pack, verifier"]
+    SCH["packages/schemas: Zod contracts shared by every layer"]
 ```
 
-Top to bottom: band 1 maps a task to a family and a Reflex. Band 2 either runs known steps in a sandbox under least privilege or sends only the unresolved decision, through the Token Firewall, to a model, and verifies either way. Band 3 stores traces, compiles and shadow-validates candidates, governs the Registry, and monitors drift. Active Reflexes flow from the Registry back to the Matcher.
+A modular monolith: one deployable (API + static web app + in-process job runner) with an optional external worker. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the Reflex and trace formats are in [docs/FORMATS.md](docs/FORMATS.md).
 
-The SDK / gateway is an integration point, not the product: BigForge decides whether a call should exist, rather than proxying every call.
+## What the numbers mean
 
-## The 5-Minute BigForge Demo
+BigForge's central claim is about **model consumption**, so the accounting is explicit.
 
-> [!NOTE]
-> This is the *target script* for the proof of concept. It has not been run. Every number is an **ILLUSTRATIVE EXAMPLE** until measured.
+| Label             | Meaning                                                                 | Example                                                |
+| ----------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| `measured`        | observed from a real system                                             | local command duration; live-provider usage            |
+| `synthetic`       | produced by the deterministic provider (a scripted stand-in for a model) | token counts, cached tokens, cost derived from them    |
+| `simulated`       | computed from a documented deterministic model                           | model latency of the deterministic provider            |
+| `estimated`       | counterfactual or projected                                              | ROI projections, tokens avoided with no reference run |
+| `replay-measured` | measured by re-running a recorded task against a Reflex                  | replay agreement, CRR of replayed runs                 |
 
-### Scene 1: Cold start
+Estimated and observed values are never merged into one unlabelled figure; pricing is an assumption with a timestamp. In the demo, the baseline agent makes roughly 9–12 model calls per task; a known task through the promoted Reflex makes **none**; the held-out ambiguous task makes **one**, carrying about a hundred tokens of evidence selected from about 3,500 observed (all `synthetic`).
 
-A coding agent receives a synthetic monorepo build failure. No Reflex exists. The AI reads logs, investigates, executes diagnostics, finds the problem, fixes it, and verifies. BigForge captures the trace.
+Token savings and dollar savings are **not the same thing here**. The simulated baseline benefits from prompt caching (about 96% of its input tokens are cache hits) and the economics include an _assumed_ human-review cost, so **dollar ROI can be negative at demo volumes while token ROI is strongly positive**, and what the demo actually executed (realised) is lower than the projection. The Economics page shows both, with the formulas, instead of choosing the flattering one. The **Cognitive Reuse Ratio** is a proposed BigForge metric, not an industry standard. Formulas, sources and limits: [docs/METRICS.md](docs/METRICS.md).
 
-Illustrative baseline: **8 model calls · 18,400 tokens · 0% Reflex coverage**
+## Testing and validation
 
-### Scene 2: Learning
-
-Several variants of the same failure family run. BigForge finds what repeats: log normalization, first-causal-error detection, workspace mapping, diagnostic selection, and the verification sequence. A candidate Reflex appears.
-
-### Scene 3: Shadow Brain
-
-A new task arrives. The AI and the candidate Reflex both execute:
-
-```text
-AI      → root failure: packages/security    verify: PASS
-Reflex  → root failure: packages/security    verify: PASS
-Shadow agreement: MATCH      (repeated across enough runs for the demo)
+```bash
+npm run validate   # prettier, eslint (typed), strict TypeScript, Vitest, production build
+npm run demo:verify
+npm run test:e2e
+npm run scan:secrets && npm run audit:deps
 ```
 
-### Scene 4: Promotion
+Risk-based coverage: command safety and sandbox containment, redaction, RBAC and tenant isolation, the Reflex lifecycle and promotion gate, uncertainty boundaries and the Token Firewall, model-output validation, verification (including a plausible-but-wrong repair that compiles yet is caught), drift, database migrations from a clean state, the full 25-step demo over HTTP, and Playwright end-to-end and axe accessibility checks. Results with exact commands and dates are recorded in the [validation ledger](docs/VALIDATION_LEDGER.md), including failures and fixes.
 
-The reviewer inspects the learned procedure, permissions, validation evidence, compatibility, stop conditions, and expected token saving, then presses **PROMOTE REFLEX**.
+## Security and responsible AI
 
-### Scene 5: The killer moment
+- **Application-level containment, not OS-grade sandboxing.** Commands are structured (never a shell), allowlisted and path-confined, with scrubbed environments, timeouts and output caps. There is no network namespace, seccomp or cgroup enforcement. [docs/SECURITY.md](docs/SECURITY.md) separates application-level containment, container isolation and production-grade sandboxing.
+- **Human approval gates promotion.** Generated Reflexes are never auto-promoted; drift demotion is automatic and mutations are only proposed. Every decision is attributed and recorded in an append-only, hash-chained audit log.
+- **Defence in depth**: RBAC in the service layer, tenant-scoped data access, CSRF header and `Sec-Fetch-Site` checks, strict CSP, secret redaction at capture, injection screening of evidence, model-output validation with safe fallback, fail-closed production mode.
+- **Independently reviewed.** A separate read-only security review confirmed seven issues; all were fixed with regression tests ([details](docs/SECURITY.md#independent-security-review-2026-11-06)). It is not a substitute for a human penetration test.
+- **Responsible AI**: humans stay in the loop, automation is legible (every step records why it exists and what it replaced), assumptions are surfaced before approval, learning uses observable behaviour only, and the demo data is synthetic.
 
-A *new* build failure arrives. BigForge recognizes the task family. Instead of sending the whole workflow through a model:
+## Azure
 
-- **10 known steps** execute locally through the Reflex.
-- **1 unknown decision** escalates to AI. BigForge sends only the uncertainty boundary: the unresolved question, the viable options, and a minimal evidence excerpt.
+Azure is optional; the product is complete without it. The repository contains Bicep templates (Container Apps, Container Registry, Key Vault, user-assigned managed identity, Log Analytics and Application Insights, optional Azure OpenAI and budget), a manual OIDC deployment workflow, a CI workflow, a container image and an Azure OpenAI provider adapter.
 
-**ILLUSTRATIVE EXAMPLE, not measured:**
+| Item                                             | Status                                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Bicep build, lint and parameter compilation      | **Validated locally**                                                                   |
+| Container image build, health check, non-root run | **Validated locally**                                                                   |
+| `az deployment what-if`, ARM validation, deployment | **Not run.** No Azure resource has been created                                      |
+| Azure OpenAI live model call, Application Insights telemetry | **Not performed.** The adapter is validated against a local protocol stub only |
 
-| | Baseline agent | With BigForge |
-|---|---|---|
-| Model calls | 8 | 1 |
-| Tokens | 18,400 | 1,050 |
-| Potential reduction | n/a | **94.3%** |
-| Verification outcome | PASS | PASS (same) |
+See [docs/AZURE.md](docs/AZURE.md) for the architecture, managed-identity and Key Vault design, cost controls, what-if usage and the honest status table.
 
-### Scene 6: Drift
+## Limitations
 
-The repository's tool output changes, for example a test runner update rewrites its log format. The Reflex starts disagreeing with the reference execution, the Drift Canary reports falling agreement, trust decreases, and the Reflex returns to Shadow mode. BigForge does not blindly automate forever.
+- **Synthetic, one family.** The lab covers monorepo build failures (three fault kinds). Results demonstrate the mechanism, not general savings; there are no benchmark claims.
+- **The model is scripted.** Agreement between the deterministic agent and the operators is partly by construction, and the drift magnitude is tuned for the lab. Live mode swaps only the provider and is validated against a protocol stub only.
+- **The compiler selects and parameterises operators** from a typed library; it does not synthesise code. Fingerprinting is rule-based, not embeddings.
+- **Single node.** SQLite on one node; no OS-grade sandbox; sessions cannot be revoked before they expire.
+- **Not deployed.** Azure assets are validated locally only.
 
-## MVP scope
-
-The first BigForge proof of concept focuses on coding-agent workflows because they provide observable tool traces, deterministic verification through tests/builds, and measurable token consumption.
-
-| # | Step | Question it answers |
-|---|---|---|
-| 1 | Capture several synthetic coding-agent traces | Does the trace format hold what matters? |
-| 2 | Detect a repeated task family | Can variants be grouped without exact-prompt matching? |
-| 3 | Extract invariant actions | Which steps never change across variants? |
-| 4 | Generate a candidate Reflex | Can invariants become a constrained, typed procedure? |
-| 5 | Replay it against historical samples | Would it have reproduced past outcomes? |
-| 6 | Run it in Shadow Brain mode | Does it agree with the AI on unseen tasks? |
-| 7 | Promote it manually | Is the evidence legible enough for a human decision? |
-| 8 | Present a new task in the same family | Does fingerprinting match it, and only it? |
-| 9 | Execute known steps through the Reflex | How much runs without a model? |
-| 10 | Deliberately introduce one unknown condition | Does the Reflex know where its knowledge ends? |
-| 11 | Trigger an uncertainty-boundary AI call | Can the escalation be small and sufficient? |
-| 12 | Verify the final result | Is success shown by evidence? |
-| 13 | Compare token and call usage against the baseline | What was saved, and what did learning cost? |
-
-*Stretch:* Scene 6 of the demo (drift injection, canary disagreement, demotion to Shadow).
-
-The POC succeeds on its synthetic corpus if the held-out run passes verification, repeated executions need fewer tokens and model calls per verified success than the baseline (learning cost reported separately), the injected unknown escalates instead of silently failing, and no safety-policy violation occurs. That shows feasibility, not general savings.
-
-### What is intentionally NOT in the MVP
-
-- Live IDE or coding-agent integration
-- Model-provider adapters beyond a minimal stand-in
-- Azure deployment
-- A multi-user or distributed Reflex Registry, or any public marketplace
-- Automatic promotion: promotion stays manual
-- Embedding-based fingerprint learning: rule and feature based only
-- Cross-model distillation, Reflex Graph UI, Time Machine
-- More than one toolchain family
-- Enterprise governance, RBAC, and compliance work
-- Any claim of production readiness
-
-## Future architecture
-
-### Reflex Registry
-
-A governed library, not a marketplace. Each entry would record: name, owner, version, compatibility, source task families, validation evidence, success rate, safety permissions, token savings, drift status, last validation, and deprecation state. The MVP would use local files and manual promotion.
-
-### Reflex Graph
-
-A visual execution graph, intended to become a signature product experience:
-
-```text
-Task ─▶ Fingerprint ─▶ Reflex match ─▶ Known execution ─▶ Uncertainty boundary
-  ─▶ Model call ─▶ Verification ─▶ Outcome ─▶ Reflex evolution
-```
-
-Each node would explain why it ran, its cost and tokens, its evidence, its confidence, and its safety status.
-
-### BigForge Time Machine
-
-A visualization of an agent learning over time. **Illustrative trajectory, not measured:**
-
-| Day | What it would show |
-|---|---|
-| 1 | Mostly AI reasoning |
-| 7 | Task families detected |
-| 14 | Reflex candidates validated |
-| 30 | Routine workflows increasingly handled through Reflexes |
-| 60 | Models increasingly focused on unfamiliar decisions |
-
-## Proposed Azure integration
-
-| Azure service | Proposed role |
-|---|---|
-| Azure Container Apps | BigForge gateway / API |
-| Azure Functions or Container Apps jobs | Replay and evaluation workers |
-| Azure Cosmos DB or PostgreSQL | Reflex metadata and governance |
-| Azure Blob Storage | Traces and replay artifacts |
-| Azure OpenAI | Uncertainty-boundary reasoning |
-| Microsoft Foundry (formerly Azure AI Foundry) | Model and evaluation workflows, where appropriate |
-| Azure Monitor / Application Insights | Telemetry: latency, model calls, token metrics |
-| Azure Key Vault | Credentials and secrets |
-| Microsoft Entra ID | Authentication and RBAC |
-| Azure Service Bus | Asynchronous validation and replay jobs |
-
-> [!NOTE]
-> These are proposed deployment targets. No Azure deployment is claimed by the README-first proof of concept, which is intended to run locally.
-
-## Responsible AI, privacy, and security
-
-### Responsible AI
-
-- **Human in the loop.** Promotion is manual in the MVP; demotion and rollback are designed to be always available and logged.
-- **Legible automation.** Every Reflex step and model call should be able to say why it ran ([Reflex Graph](#reflex-graph)).
-- **Meaningful verification.** Passing tests can hide a bad fix, and a Reflex can encode a flawed habit. Review and Anti-Reflexes exist for this reason.
-- **Observable behavior only.** BigForge learns from externally visible traces, tool actions, evidence, and outcomes, not model internals. Review model-provider terms on output retention and reuse before storing traces.
-
-### Privacy
-
-- Traces can contain source code, logs, and secrets. The design defaults to local-first storage, redaction at capture, and retention limits; nothing leaves the machine or tenant without explicit opt-in.
-- Sending only the uncertainty boundary to a model should reduce data exposure; that is to be verified, not assumed.
-- The POC uses only synthetic repositories and traces, never real user data.
-
-### Security
-
-- **Untrusted input.** Logs, repositories, and tool output can carry prompt injection or poisoned traces. Embedded instructions must never become Reflex steps; compile only from verified-successful traces, with human review.
-- **Enforced permissions.** A Reflex cannot widen its own permissions; the sandbox enforces them.
-- **Integrity.** Reflexes are versioned artifacts with owners and audit trails; a production registry would add signing and RBAC.
-- **Secrets and spend.** Secrets never enter traces or Reflexes (the POC uses none); token budgets and rate limits guard against runaway spend.
-- **Auditability.** Every match, skip, escalation, and denial is logged with a reason.
-
-## Evaluation strategy
-
-A serious project must show that using fewer tokens does not damage quality.
-
-> [!IMPORTANT]
-> **The cheapest model call is the one that never needed to happen, but only when the outcome remains correct and verifiable.**
-
-BigForge optimizes for **minimum AI consumption subject to quality, safety, and verification constraints**, not for minimum tokens alone.
-
-### Experiment design (proposed)
-
-Compare a **baseline agent** with **BigForge** on equivalent task families, with the same tasks, models, and verification harness.
-
-- **Splits.** Learning variants versus held-out variants of the same family; out-of-family tasks to measure false matches; drift-injected variants.
-- **Ablations.** BigForge without Shadow Brain, and without the Token Firewall, to test whether each earns its cost.
-- **Repeats.** Several runs per condition, since model behavior is nondeterministic; report spread, not only means.
-- **Honest accounting.** Learning, shadow, and canary tokens count against BigForge. Tokens come from provider-reported usage; cost uses a pinned price sheet.
-
-| Dimension | Measured |
-|---|---|
-| Quality | Successful completion rate, verification pass rate, human intervention, rollbacks |
-| Consumption | Model calls, input tokens, output tokens, total tokens, latency, cost per successful task |
-| Reflex health | Reflex coverage, escalation frequency, shadow agreement, false Reflex match rate, drift detection |
-
-### Hypotheses and failure conditions
-
-- **H1.** Within a task family, BigForge uses fewer model calls and tokens per *verified* success than the baseline.
-- **H2.** Verification pass rate and safety violations are no worse than baseline, within a margin set before running.
-- **H3.** Shadow disagreement and the Drift Canary detect injected drift before a wrong result is accepted.
-- **H4.** Learning investment pays back: Cognitive ROI turns positive within a plausible number of executions.
-
-If a hypothesis fails for a task family, that is a finding and will be reported as one.
-
-### Claims policy
-
-Performance figures in this repository are labelled as an **ILLUSTRATIVE EXAMPLE**, a **RETROSPECTIVE ESTIMATE**, or a **measured result** with a linked method. There are currently no measured results.
+The complete, current list is in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
 
 ## Roadmap
 
-| Phase | Focus | Done when |
-|---|---|---|
-| 0. Specify | This README: vision, POC definition, evaluation plan | Reviewed |
-| 1. Foundations | Trace format, synthetic corpus, task fingerprinting, Reflex schema | Variants of one failure family are captured and grouped |
-| 2. Learn and validate | Local Reflex Compiler, replay harness, Shadow mode | A candidate Reflex replays correctly on held-out traces and shadow agreement is reported |
-| 3. Measure | Token accounting, minimal dashboard, baseline-versus-BigForge comparison | Reproducible results with a published method |
-| 4. Harden | Drift Canary, depreciation, Anti-Reflexes, mutation | Injected drift is detected and the Reflex is demoted |
-| 5. Integrate (future) | Live coding-agent integration, provider adapters | Pilot on a real agent workflow |
-| 6. Scale (future) | Azure deployment, distributed Registry, governance | Security and privacy review |
+| Next                                                                 | Why                                                                          |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Record real agent traces behind the trace format; shadow on held-out real tasks | The only way to learn whether the savings survive real models           |
+| More task families (flaky tests, dependency bumps, lint) and held-out evaluation | Tests generalisation and the false-match rate                           |
+| Production-grade sandboxing (gVisor / Firecracker / nsjail)          | Replace application-level containment for untrusted repositories             |
+| PostgreSQL adapter and a distributed Reflex registry                 | Multi-node operation                                                         |
+| Live-provider validation and an Azure what-if / deployment with smoke tests | Turn "validated locally" into "validated in Azure"                        |
 
-Dates are intentionally omitted until phase 1 establishes a realistic pace.
+## Repository layout
 
-## Repository status
+| Path                              | Contents                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `apps/web`                        | React 19 UI: shell, presenter, signature visualizations (Forge Graph, Uncertainty Lens, Reflex DNA, economics, drift) |
+| `apps/api`, `apps/worker`         | Fastify API; optional external job worker                                     |
+| `packages/schemas`                | Zod contracts: trace, Reflex, fingerprint, firewall, economics, API DTOs      |
+| `packages/core`                   | compiler, executor, Token Firewall, drift, economics, sandbox, agent loop     |
+| `packages/platform`               | services, SQLite persistence, demo director, audit                            |
+| `packages/security`, `providers`, `observability` | sandboxed execution, redaction, RBAC; providers; metrics and tracing |
+| `synthetic-labs/monorepo-build`   | the synthetic lab: `forge-ci` toolchain, scenarios, operator pack, verifier   |
+| `infra`, `.github`, `Dockerfile`  | Bicep, CI/CD workflows, container image                                       |
+| `docs`                            | architecture, formats, metrics, security, Azure, demo guide, decisions, ledger, limitations, original vision |
 
-> [!IMPORTANT]
-> **STATUS: DESIGN / PROOF OF CONCEPT**
+## Documentation
 
-**Implemented**
+[Demo guide](docs/DEMO_GUIDE.md) · [Judge Q&A](docs/JUDGE_QA.md) · [Architecture](docs/ARCHITECTURE.md) · [Formats](docs/FORMATS.md) · [Metrics](docs/METRICS.md) · [Security](docs/SECURITY.md) · [Azure](docs/AZURE.md) · [Design system](docs/DESIGN_SYSTEM.md) · [Decisions](docs/DECISIONS.md) · [Validation ledger](docs/VALIDATION_LEDGER.md) · [Known limitations](docs/KNOWN_LIMITATIONS.md) · [Original vision](docs/VISION.md)
 
-- [x] README / specification
+## License
 
-**Planned first**
-
-- [ ] Trace format
-- [ ] Synthetic agent trace corpus
-- [ ] Task fingerprinting
-- [ ] Reflex schema
-- [ ] Local Reflex Compiler
-- [ ] Replay harness
-- [ ] Shadow mode
-- [ ] Token accounting
-- [ ] Minimal dashboard
-
-**Future**
-
-- Live coding-agent integration
-- Model provider adapters
-- Azure deployment
-- Distributed Reflex Registry
-- Enterprise governance
-
-## Contributing
-
-BigForge is at the specification stage. Feedback on the concept, the Reflex schema, and the evaluation design is welcome through GitHub Issues. Large implementation pull requests would be premature before the trace format and Reflex schema are settled.
-
-## License and status note
-
-No license has been selected yet. This repository contains documentation only; a license will need to be chosen before code is published or external contributions are accepted. Third-party projects named here belong to their authors and remain under their own licenses; references are for context and imply no affiliation or endorsement.
+No license has been selected yet, so all rights are reserved by default. The repository owner needs to choose one before external contributions are accepted or reuse is encouraged. Third-party projects mentioned in the documentation belong to their authors and imply no affiliation or endorsement.
 
 ## Project philosophy
 
-Reasoning is an expensive resource, best spent where it creates new information.
-
-- Reuse what is known. Think only at the edge of uncertainty.
-- Trust is earned with evidence and allowed to expire.
-- Savings never outrank safety or correctness.
-- Claims follow measurements, never the other way around.
+Reasoning is an expensive resource, best spent where it creates new information. Reuse what is known; think only at the edge of uncertainty. Trust is earned with evidence and allowed to expire. Savings never outrank safety or correctness. Claims follow measurements, never the other way around.
 
 **Forge reasoning once.**
