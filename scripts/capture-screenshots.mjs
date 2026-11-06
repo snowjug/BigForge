@@ -8,6 +8,7 @@
  * fast-forwards the demo to its final state through the same API the presenter uses, then drives a real
  * browser. Needs Chromium: `npx playwright install chromium`.
  */
+/* global document */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -114,29 +115,68 @@ try {
     await sleep(600);
   };
   const file = (name) => path.join(values.out, name);
-  const view = async (p, route, name, { focus, element } = {}) => {
+  /** The app scrolls inside <main>, so scroll that (scrollIntoView would also shift the clipped shell). */
+  const scrollMain = async (target, offset) => {
+    await target.first().evaluate((el, gap) => {
+      const main = document.querySelector('main.bf-main');
+      if (!main) return;
+      main.scrollTop += el.getBoundingClientRect().top - main.getBoundingClientRect().top - gap;
+    }, offset);
+    await sleep(350);
+  };
+  // The Run Console has a sticky "Jump to" bar of about 56px; leave room for it.
+  const RUN_OFFSET = 72;
+  const view = async (p, route, name, { focus, offset = 16 } = {}) => {
     await p.goto(route);
     await settle(p);
-    if (focus) {
-      const target = p.getByTestId(focus).first();
-      await target.scrollIntoViewIfNeeded();
-      await target.evaluate((el) => el.scrollIntoView({ block: 'start' }));
-      await sleep(400);
-    }
-    if (element)
-      await p
-        .getByTestId(element)
-        .first()
-        .screenshot({ path: file(name) });
-    else await p.screenshot({ path: file(name) });
+    if (focus) await scrollMain(p.getByTestId(focus), offset);
+    await p.screenshot({ path: file(name) });
     console.log(`  ${name}`);
   };
+  /** A tall region: grow the viewport so it is not stitched together from several screens, then clip to it. */
+  const region = async (p, route, name, locator, { maxHeight, offset = 16, pad = 24 }) => {
+    await p.goto(route);
+    await settle(p);
+    await p.setViewportSize({ width: 1440, height: 2400 });
+    await sleep(600);
+    await scrollMain(locator, offset);
+    const box = await locator.first().boundingBox();
+    if (!box) throw new Error(`${name}: region not found`);
+    const x = Math.max(0, box.x - pad);
+    await p.screenshot({
+      path: file(name),
+      clip: {
+        x,
+        y: Math.max(0, box.y - pad / 2),
+        width: Math.min(1440 - x, box.width + pad * 2),
+        height: Math.min(box.height, maxHeight) + pad,
+      },
+    });
+    await p.setViewportSize({ width: 1440, height: 900 });
+    await sleep(300);
+    console.log(`  ${name}`);
+  };
+  const panelOf = (p, testid) =>
+    p
+      .getByTestId(testid)
+      .first()
+      .locator('xpath=ancestor::section[contains(@class,"bf-panel")][1]');
 
   await view(page, routes.home, '01-forge-floor.png');
   await view(page, routes.killer, '02-run-console-killer.png');
-  await view(page, routes.killer, '03-uncertainty-lens.png', { element: 'uncertainty-lens' });
-  await view(page, routes.killer, '04-baseline-vs-reflex.png', { focus: 'exec-lane-baseline' });
-  await view(page, routes.learn, '05-reflex-dna.png', { element: 'reflex-dna' });
+  const lens = page.getByTestId('uncertainty-lens');
+  await region(page, routes.killer, '03-uncertainty-lens.png', lens, {
+    maxHeight: 1080,
+    offset: RUN_OFFSET,
+  });
+  const baseline = panelOf(page, 'exec-lane-baseline');
+  await region(page, routes.killer, '04-baseline-vs-reflex.png', baseline, {
+    maxHeight: 980,
+    offset: RUN_OFFSET,
+  });
+  await region(page, routes.learn, '05-reflex-dna.png', page.getByTestId('reflex-dna'), {
+    maxHeight: 1100,
+  });
   await view(page, routes.reflex, '06-reflex-detail.png');
   await view(page, routes.shadow, '07-shadow-lab.png');
   await view(page, routes.economics, '08-economics.png');
@@ -149,11 +189,6 @@ try {
   await page.screenshot({ path: file('10-governance.png') });
   console.log('  10-governance.png');
 
-  // The presenter on the Token Firewall step, with the highlighted region.
-  await desktop.request.post('/api/demo/goto', { headers: HEADERS, data: { step: 16 } });
-  await page.addInitScript(() => sessionStorage.setItem('bf.demo.open', '1'));
-  await view(page, routes.killer, '13-presenter.png');
-
   const light = await open({ width: 1440, height: 900, theme: 'light' });
   await signIn(light);
   await view(await light.newPage(), routes.economics, '11-light-theme.png');
@@ -161,6 +196,15 @@ try {
   const phone = await open({ width: 390, height: 844, mobile: true });
   await signIn(phone);
   await view(await phone.newPage(), routes.killer, '12-mobile.png');
+
+  // Last, because it moves the shared presenter cursor: the presenter on the Token Firewall step.
+  await desktop.request.post('/api/demo/goto', { headers: HEADERS, data: { step: 16 } });
+  await page.addInitScript(() => sessionStorage.setItem('bf.demo.open', '1'));
+  await view(page, routes.killer, '13-presenter.png', {
+    focus: 'uncertainty-lens',
+    offset: RUN_OFFSET,
+  });
+  await desktop.request.post('/api/demo/goto', { headers: HEADERS, data: { step: 25 } });
 
   await browser.close();
   console.log(`Screenshots written to ${path.relative(root, values.out)}`);
