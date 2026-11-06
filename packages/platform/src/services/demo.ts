@@ -206,9 +206,9 @@ export const DEMO_STEPS: StepDef[] = [
     id: 'comparison',
     title: 'Baseline and BigForge execution are compared',
     narration:
-      'The same task, the same verifier: how many calls, how many tokens, how much work stayed local.',
+      'The same task, the same verifier: how many calls, how many tokens, how much work stayed local. Cognitive Economics (left rail) shows what earning that saving cost.',
     scene: 'The killer moment',
-    route: '/economics',
+    route: '/run',
     kind: 'view',
     actionLabel: null,
   },
