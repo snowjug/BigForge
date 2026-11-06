@@ -50,7 +50,9 @@ describe('the guided demo adopts work done from the regular pages', () => {
     expect(ts.approvals.all(ts.tenantId, { where: { action: 'promote' } })).toHaveLength(1);
     // Steps 1 and 2 adopted the first task and its baseline run, step 4 found the rest already solved, and
     // only the three unrelated "noise" tasks of step 5 are new: no extra tasks, runs or versions.
-    expect(ts.tasks.all(ts.tenantId, { where: { scenarioId: LEARNING_IDS[0] } })).toHaveLength(1);
+    expect(
+      ts.tasks.all(ts.tenantId, { where: { scenarioId: LEARNING_IDS[0] ?? '' } }),
+    ).toHaveLength(1);
     expect(ts.tasks.all(ts.tenantId).length - tasksBefore).toBe(3);
     expect(ts.runs.all(ts.tenantId)).toHaveLength(runsBefore);
 

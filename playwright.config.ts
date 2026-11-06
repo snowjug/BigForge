@@ -4,10 +4,14 @@ import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 const port = Number(process.env.E2E_PORT ?? 4848);
-const baseURL = `http://127.0.0.1:${port}`;
+// E2E_BASE_URL runs the suite against a server that is already up, for example the container image:
+//   docker run -d -p 4747:4747 bigforge && E2E_BASE_URL=http://127.0.0.1:4747 npm run test:e2e
+// It must be a fresh demo-mode instance, because the specs walk the guided demo from its first step.
+const external = process.env.E2E_BASE_URL;
+const baseURL = external ?? `http://127.0.0.1:${port}`;
 const bundle = path.resolve('dist/server/main.mjs');
 
-if (!existsSync(bundle) && !process.env.E2E_SKIP_BUNDLE_CHECK) {
+if (!external && !existsSync(bundle)) {
   throw new Error('dist/server/main.mjs not found. Run `npm run build` before `npm run test:e2e`.');
 }
 
@@ -37,18 +41,20 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],
-  webServer: {
-    command: `node ${bundle}`,
-    url: `${baseURL}/api/health`,
-    reuseExistingServer: false,
-    timeout: 60_000,
-    env: {
-      PORT: String(port),
-      HOST: '127.0.0.1',
-      BIGFORGE_DATABASE_FILE: ':memory:',
-      BIGFORGE_DATA_DIR: path.join(os.tmpdir(), 'bigforge-e2e'),
-      BIGFORGE_MODE: 'demo',
-      BIGFORGE_PROVIDER_MODE: 'deterministic',
-    },
-  },
+  webServer: external
+    ? undefined
+    : {
+        command: `node ${bundle}`,
+        url: `${baseURL}/api/health`,
+        reuseExistingServer: false,
+        timeout: 60_000,
+        env: {
+          PORT: String(port),
+          HOST: '127.0.0.1',
+          BIGFORGE_DATABASE_FILE: ':memory:',
+          BIGFORGE_DATA_DIR: path.join(os.tmpdir(), 'bigforge-e2e'),
+          BIGFORGE_MODE: 'demo',
+          BIGFORGE_PROVIDER_MODE: 'deterministic',
+        },
+      },
 });
