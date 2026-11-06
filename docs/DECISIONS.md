@@ -41,3 +41,12 @@ Generated Reflexes are never auto-promoted or auto-activated. Promotion requires
 ## D-010 — Direct delivery to `main`
 
 Per the delivery directive, final delivery targets `origin/main` without force-push or history rewrite. If protection or credentials block it, push a feature branch and open a PR.
+
+## D-011 — Token ROI and dollar ROI are shown side by side
+
+Reflex savings are reported in tokens and in dollars. With the synthetic price sheet the baseline agent benefits from simulated prompt caching (about 96% of its input tokens are cache hits, billed at the cached rate), so avoided dollars per task are small and **dollar ROI is negative at the demo's assumed volumes** once the human-review hour ($12.50 assumption) is counted. Token ROI projects well above 1x. The Economics page shows both, labels which are `measured` (realized, from ledger runs), `estimated` (projected, with an interval) and explains the difference instead of picking the flattering number. **Change if:** a real price sheet and real cache hit rates are supplied.
+
+## D-012 — Drift magnitude in the synthetic lab is designed, not discovered
+
+The lab's `forge-ci` v1.5.0 builds workspaces in parallel; log order for three of the twelve shadow tasks (S5, S6, S10) is cascade-first by construction of the timing constants. The compiler's simple `locate_by_log_order` operator is correct for all learning traces (sequential logs), so it is chosen — and then drifts. This reproduces a *realistic mechanism* (an environment change breaks a fragile assumption) with a *chosen magnitude* (75% canary agreement). The UI and docs say so wherever the number is shown.
+
