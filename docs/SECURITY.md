@@ -36,7 +36,7 @@ BigForge does **not** claim OS-grade sandboxing. The synthetic lab's only execut
 - **Tenant isolation**: every table carries `tenant_id` and is reachable only through `TenantStore`, which adds the tenant filter to every statement. Tests prove cross-tenant reads and writes fail (store level and HTTP level).
 - **Sessions**: HMAC-signed cookie, `HttpOnly`, `SameSite=Lax`, `Secure` in production mode, 8-hour expiry, re-validated against the database on every request. Passwords use scrypt with constant-time comparison; login failures use one generic message, a dummy hash for unknown users, and a per-IP+email rate limit.
 - **CSRF**: every mutating `/api/*` call must carry `X-BigForge-Client`, a custom header a cross-site form cannot set.
-- **HTTP hardening**: strict CSP (`default-src 'self'`, no inline script, no framing), `nosniff`, 256 KB body limit, bounded pagination (≤ 100), zod validation on every input.
+- **HTTP hardening**: strict CSP (`default-src 'self'`, `script-src 'self'` with no inline script, `frame-ancestors 'none'`; inline *styles* are allowed because the UI sets computed style attributes), `nosniff`, 256 KB body limit, bounded pagination (≤ 100), zod validation on every input.
 - **Production mode** requires `BIGFORGE_SESSION_SECRET` (≥ 32 chars), disables demo identities and demo reset.
 
 ### Integrity and audit

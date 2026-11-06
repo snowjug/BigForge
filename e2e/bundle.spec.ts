@@ -26,7 +26,7 @@ test.describe('production bundle', () => {
     const res = await request.get('/');
     const headers = res.headers();
     expect(headers['content-security-policy']).toContain("default-src 'self'");
-    expect(headers['content-security-policy']).toContain("frame-ancestors 'self'");
+    expect(headers['content-security-policy']).toContain("frame-ancestors 'none'");
     expect(headers['x-content-type-options']).toBe('nosniff');
 
     for (const url of ['/api/tasks', '/api/reflexes', '/api/system', '/api/economics']) {
