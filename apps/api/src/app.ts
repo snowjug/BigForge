@@ -115,7 +115,13 @@ export async function buildApp(
     const allowed = new Set(options.allowedHosts.map((h) => h.toLowerCase()));
     app.addHook('onRequest', (req, _reply, done) => {
       if (!allowed.has(hostnameOf(req.headers.host))) {
-        done(new AppError(403, 'bad_host', 'This host name is not accepted by the server'));
+        done(
+          new AppError(
+            403,
+            'bad_host',
+            'This host name is not accepted by the server. When it is reached through a port forward or proxy, list the name in BIGFORGE_ALLOWED_HOSTS.',
+          ),
+        );
         return;
       }
       done();
@@ -123,6 +129,7 @@ export async function buildApp(
   }
 
   await app.register(fastifyCookie);
+  const secure = options.secureCookies ?? platform.config.mode === 'production';
   await app.register(fastifyHelmet, {
     contentSecurityPolicy: {
       directives: {
@@ -136,8 +143,12 @@ export async function buildApp(
         frameAncestors: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
+        // Upgrading to HTTPS only makes sense behind TLS. Over plain HTTP on a non-loopback address (the demo
+        // image run on another machine) the browser would rewrite every asset URL to https and load nothing.
+        upgradeInsecureRequests: secure ? [] : null,
       },
     },
+    strictTransportSecurity: secure ? { maxAge: 31_536_000, includeSubDomains: true } : false,
     crossOriginEmbedderPolicy: false,
   });
 
@@ -214,8 +225,6 @@ export async function buildApp(
     }
     void reply.status(404).send({ error: { code: 'not_found', message: 'Not found' } });
   });
-
-  const secure = options.secureCookies ?? platform.config.mode === 'production';
 
   // Every API route lives in this encapsulated scope, so the authentication and CSRF hooks apply to all of
   // them by construction. They never inspect the URL string: a percent-encoded or absolute-form spelling that

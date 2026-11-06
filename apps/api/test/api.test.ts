@@ -63,6 +63,21 @@ describe('platform basics', () => {
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
+  it('upgrades to HTTPS only behind TLS, so the demo still loads over plain HTTP on a LAN address', async () => {
+    const plain = await app.inject({ url: '/api/health' });
+    expect(plain.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
+    expect(plain.headers['strict-transport-security']).toBeUndefined();
+
+    const tls = await buildApp(platform, { secureCookies: true });
+    try {
+      const res = await tls.inject({ url: '/api/health' });
+      expect(res.headers['content-security-policy']).toContain('upgrade-insecure-requests');
+      expect(res.headers['strict-transport-security']).toContain('max-age=31536000');
+    } finally {
+      await tls.close();
+    }
+  });
+
   it('requires authentication for everything else', async () => {
     expect((await app.inject({ url: '/api/tasks' })).statusCode).toBe(401);
     expect((await app.inject({ url: '/api/system' })).statusCode).toBe(401);

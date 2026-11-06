@@ -78,6 +78,8 @@ Password for all of them: `forge-demo`.
 
 Or with Docker: `docker build -t bigforge . && docker run --rm -p 4747:4747 bigforge`.
 
+Reaching the server through a port forward, reverse proxy or another machine? `npm run demo` binds to loopback and accepts only loopback `Host` headers (a DNS-rebinding defence). List other names in `BIGFORGE_ALLOWED_HOSTS` (comma separated), or deliberately expose the demo on all interfaces with `HOST=0.0.0.0 BIGFORGE_MODE=demo npm run demo`, which is what the container does. The demo is plain HTTP and its identities are public, so keep it off untrusted networks.
+
 ## The guided demo
 
 One story, 25 steps, in five scenes, driven by a presenter bar (`Back`, `Next`, `Restart`, `Exit`, arrow keys). Every step runs real code against a synthetic repository; the bar only navigates and triggers actions.
