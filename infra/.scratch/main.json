@@ -1,0 +1,1784 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.48.1.52935",
+      "templateHash": "7864199076043776825"
+    },
+    "name": "BigForge on Azure Container Apps",
+    "description": "Subscription-scope entry point: creates one resource group and, inside it, the optional Azure demo deployment of BigForge (single replica, no secrets in the template)."
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[deployment().location]",
+      "metadata": {
+        "description": "Azure region for the resource group and its resources. Defaults to the region passed as --location to the deployment command."
+      }
+    },
+    "workloadName": {
+      "type": "string",
+      "defaultValue": "bigforge",
+      "minLength": 3,
+      "maxLength": 12,
+      "metadata": {
+        "description": "Short workload name used in resource names: 3-12 lowercase letters and digits."
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "dev",
+      "allowedValues": [
+        "dev",
+        "test",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment label used in resource names and tags. It is a naming label only and implies no production hardening."
+      }
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "defaultValue": "[format('rg-{0}-{1}', parameters('workloadName'), parameters('environmentName'))]",
+      "metadata": {
+        "description": "Name of the resource group to create. A resource group with this name that already exists is updated in place."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Extra tags merged over the defaults. Do not put personal data or secrets in tags."
+      }
+    },
+    "containerImage": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Fully qualified image to run, for example <registry>.azurecr.io/bigforge:<tag>. Leave empty for the first (foundation) deployment: the registry is created by this template and starts empty, so the Container App is only created once an image is given."
+      }
+    },
+    "appMode": {
+      "type": "string",
+      "defaultValue": "demo",
+      "allowedValues": [
+        "demo",
+        "production"
+      ],
+      "metadata": {
+        "description": "Value of BIGFORGE_MODE. \"production\" requires a session secret; it is not a claim of production readiness."
+      }
+    },
+    "minReplicas": {
+      "type": "int",
+      "defaultValue": 0,
+      "allowedValues": [
+        0,
+        1
+      ],
+      "metadata": {
+        "description": "Minimum replicas. 0 lets the app scale to zero when idle. The maximum is fixed at 1 because state is a single-node SQLite database."
+      }
+    },
+    "sessionSecret": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Value of the BIGFORGE_SESSION_SECRET Key Vault secret. Supply it at deployment time (main.bicepparam reads it from an environment variable) and never commit it. When empty, no secret is written and one must already exist in the vault before the Container App is created."
+      }
+    },
+    "otlpEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional value of OTEL_EXPORTER_OTLP_ENDPOINT. Empty leaves the variable unset."
+      }
+    },
+    "logRetentionDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "minValue": 30,
+      "maxValue": 730,
+      "metadata": {
+        "description": "Days of data kept in the Log Analytics workspace."
+      }
+    },
+    "logDailyQuotaGb": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": -1,
+      "metadata": {
+        "description": "Daily ingestion cap of the Log Analytics workspace in GB. Use -1 for no cap. At the cap, ingestion of billable data stops until the daily reset."
+      }
+    },
+    "keyVaultPurgeProtection": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Key Vault purge protection. Irreversible once enabled; a deleted vault then keeps its name reserved until the retention period ends."
+      }
+    },
+    "keyVaultSoftDeleteRetentionDays": {
+      "type": "int",
+      "defaultValue": 7,
+      "minValue": 7,
+      "maxValue": 90,
+      "metadata": {
+        "description": "Days a deleted Key Vault and its secrets are retained (soft delete). Cannot be changed after the vault exists."
+      }
+    },
+    "deployAzureOpenAi": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Create an Azure OpenAI account with one model deployment, key-based auth disabled, and wire the app to it with the workload identity. Billed per token consumed."
+      }
+    },
+    "azureOpenAiLocation": {
+      "type": "string",
+      "defaultValue": "[parameters('location')]",
+      "metadata": {
+        "description": "Region of the Azure OpenAI account. Model availability and quota are regional and per subscription."
+      }
+    },
+    "azureOpenAiModelName": {
+      "type": "string",
+      "defaultValue": "gpt-4o-mini",
+      "metadata": {
+        "description": "Model to deploy. The default is a placeholder: verify current availability and retirement dates in your region before enabling."
+      }
+    },
+    "azureOpenAiModelVersion": {
+      "type": "string",
+      "defaultValue": "2024-07-18",
+      "metadata": {
+        "description": "Version of the model to deploy. Placeholder; see azureOpenAiModelName."
+      }
+    },
+    "azureOpenAiDeploymentName": {
+      "type": "string",
+      "defaultValue": "[parameters('azureOpenAiModelName')]",
+      "metadata": {
+        "description": "Name of the model deployment (AZURE_OPENAI_DEPLOYMENT)."
+      }
+    },
+    "azureOpenAiSkuName": {
+      "type": "string",
+      "defaultValue": "GlobalStandard",
+      "allowedValues": [
+        "Standard",
+        "GlobalStandard"
+      ],
+      "metadata": {
+        "description": "Deployment SKU. Both options are pay-per-token."
+      }
+    },
+    "azureOpenAiCapacity": {
+      "type": "int",
+      "defaultValue": 10,
+      "minValue": 1,
+      "metadata": {
+        "description": "Deployment capacity in units of 1,000 tokens per minute. A rate limit, not a spending cap."
+      }
+    },
+    "azureOpenAiApiVersion": {
+      "type": "string",
+      "defaultValue": "2024-10-21",
+      "metadata": {
+        "description": "Azure OpenAI data-plane API version (AZURE_OPENAI_API_VERSION)."
+      }
+    },
+    "budgetAmount": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0,
+      "metadata": {
+        "description": "Monthly budget for the resource group, in the subscription billing currency. 0 (the default) creates no budget. A budget only sends alerts; it never stops spending."
+      }
+    },
+    "budgetContactEmail": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "E-mail address for budget alerts. Both budgetAmount and this value must be set for a budget to be created."
+      }
+    },
+    "budgetThresholds": {
+      "type": "array",
+      "items": {
+        "type": "int"
+      },
+      "defaultValue": [
+        50,
+        80,
+        100
+      ],
+      "minLength": 1,
+      "maxLength": 4,
+      "metadata": {
+        "description": "Budget alert thresholds in percent of the budget, evaluated on actual cost. Must be unique. A forecast alert at 100 percent is always added; a budget allows five alerts in total."
+      }
+    },
+    "budgetStartDate": {
+      "type": "string",
+      "defaultValue": "[utcNow('yyyy-MM-01')]",
+      "metadata": {
+        "description": "First day (yyyy-MM-dd) of the first budget month. Defaults to the first day of the current UTC month at deployment time."
+      }
+    }
+  },
+  "variables": {
+    "workloadSlug": "[toLower(replace(parameters('workloadName'), '-', ''))]",
+    "resourceToken": "[uniqueString(subscription().id, variables('workloadSlug'), parameters('environmentName'), parameters('location'))]",
+    "resourceTags": "[union(createObject('application', 'bigforge', 'environment', parameters('environmentName'), 'managedBy', 'bicep'), parameters('tags'))]",
+    "sessionSecretName": "bigforge-session-secret",
+    "deployApp": "[not(empty(parameters('containerImage')))]",
+    "createBudget": "[and(greater(parameters('budgetAmount'), 0), not(empty(parameters('budgetContactEmail'))))]"
+  },
+  "resources": {
+    "rg": {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2025-04-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('resourceTags')]"
+    },
+    "monitoring": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "monitoring",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "logAnalyticsName": {
+            "value": "[format('log-{0}-{1}-{2}', variables('workloadSlug'), parameters('environmentName'), variables('resourceToken'))]"
+          },
+          "appInsightsName": {
+            "value": "[format('appi-{0}-{1}', variables('workloadSlug'), parameters('environmentName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "retentionInDays": {
+            "value": "[parameters('logRetentionDays')]"
+          },
+          "dailyQuotaGb": {
+            "value": "[parameters('logDailyQuotaGb')]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "11893101655928466544"
+            },
+            "name": "BigForge monitoring",
+            "description": "Log Analytics workspace (with a daily ingestion cap) and a workspace-based Application Insights component."
+          },
+          "parameters": {
+            "logAnalyticsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Log Analytics workspace."
+              }
+            },
+            "appInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Insights component."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "minValue": 30,
+              "maxValue": 730,
+              "metadata": {
+                "description": "Days to retain data in the workspace."
+              }
+            },
+            "dailyQuotaGb": {
+              "type": "int",
+              "defaultValue": 1,
+              "minValue": -1,
+              "metadata": {
+                "description": "Daily ingestion cap in GB for the workspace. Use -1 for no cap. When the cap is reached, ingestion of billable data stops until the daily reset."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2025-02-01",
+              "name": "[parameters('logAnalyticsName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]",
+                "workspaceCapping": {
+                  "dailyQuotaGb": "[parameters('dailyQuotaGb')]"
+                },
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('appInsightsName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]",
+                "IngestionMode": "LogAnalytics",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Log Analytics workspace."
+              },
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+            },
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Log Analytics workspace."
+              },
+              "value": "[parameters('logAnalyticsName')]"
+            },
+            "appInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Insights component. Its connection string is read inside the Container App module and is deliberately not exposed as an output."
+              },
+              "value": "[parameters('appInsightsName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "rg"
+      ]
+    },
+    "identity": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "identity",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('id-{0}-{1}', variables('workloadSlug'), parameters('environmentName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "15287801601914942305"
+            },
+            "name": "BigForge workload identity",
+            "description": "User-assigned managed identity shared by the Container App for registry pull, Key Vault secret reads and (optionally) Azure OpenAI."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the user-assigned managed identity."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2024-11-30",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the identity."
+              },
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the identity."
+              },
+              "value": "[parameters('name')]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Object (principal) ID, used as the principal of role assignments."
+              },
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('name')), '2024-11-30').principalId]"
+            },
+            "clientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID, exposed to the app as AZURE_CLIENT_ID so DefaultAzureCredential selects this identity."
+              },
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('name')), '2024-11-30').clientId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "rg"
+      ]
+    },
+    "keyVault": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "key-vault",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('kv-{0}-{1}', take(variables('workloadSlug'), 7), variables('resourceToken'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "enablePurgeProtection": {
+            "value": "[parameters('keyVaultPurgeProtection')]"
+          },
+          "softDeleteRetentionInDays": {
+            "value": "[parameters('keyVaultSoftDeleteRetentionDays')]"
+          },
+          "workloadPrincipalId": {
+            "value": "[reference('identity').outputs.principalId.value]"
+          },
+          "sessionSecretName": {
+            "value": "[variables('sessionSecretName')]"
+          },
+          "sessionSecretValue": {
+            "value": "[parameters('sessionSecret')]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference('monitoring').outputs.workspaceId.value]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "8843923908247868122"
+            },
+            "name": "BigForge Key Vault",
+            "description": "RBAC-authorized Key Vault (no access policies) with soft delete, optional purge protection, an optional session secret, audit logging, and secret-read access for the workload identity."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24,
+              "metadata": {
+                "description": "Name of the Key Vault (3-24 characters, globally unique)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "enablePurgeProtection": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable purge protection. It cannot be disabled once enabled, and it keeps a deleted vault (and its name) reserved until the soft-delete retention period ends."
+              }
+            },
+            "softDeleteRetentionInDays": {
+              "type": "int",
+              "defaultValue": 7,
+              "minValue": 7,
+              "maxValue": 90,
+              "metadata": {
+                "description": "Days a deleted vault and its secrets are retained (soft delete). Cannot be changed after the vault is created."
+              }
+            },
+            "workloadPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal (object) ID of the workload identity, granted \"Key Vault Secrets User\" on this vault."
+              }
+            },
+            "sessionSecretName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the session secret that the Container App reads."
+              }
+            },
+            "sessionSecretValue": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Value of the session secret. When empty, no secret is written and a secret with the name above must already exist before the Container App is deployed."
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Log Analytics workspace that receives Key Vault audit logs."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "variables": {
+            "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2025-05-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "tenantId": "[tenant().tenantId]",
+                "sku": {
+                  "family": "A",
+                  "name": "standard"
+                },
+                "enableRbacAuthorization": true,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
+                "enablePurgeProtection": "[if(parameters('enablePurgeProtection'), true(), null())]",
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": false,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "bypass": "AzureServices",
+                  "defaultAction": "Allow"
+                }
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('sessionSecretValue')))]",
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2025-05-01",
+              "name": "[format('{0}/{1}', parameters('name'), parameters('sessionSecretName'))]",
+              "properties": {
+                "value": "[parameters('sessionSecretValue')]",
+                "contentType": "text/plain",
+                "attributes": {
+                  "enabled": true
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('name')), parameters('workloadPrincipalId'), variables('keyVaultSecretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsUserRoleId'))]",
+                "principalId": "[parameters('workloadPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]",
+              "name": "audit-to-log-analytics",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "categoryGroup": "audit",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Key Vault."
+              },
+              "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Key Vault."
+              },
+              "value": "[parameters('name')]"
+            },
+            "vaultUri": {
+              "type": "string",
+              "metadata": {
+                "description": "Data-plane URI of the Key Vault, ending in a slash."
+              },
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('name')), '2025-05-01').vaultUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "identity",
+        "monitoring",
+        "rg"
+      ]
+    },
+    "registry": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "container-registry",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('cr{0}{1}', take(variables('workloadSlug'), 8), variables('resourceToken'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "pullPrincipalId": {
+            "value": "[reference('identity').outputs.principalId.value]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "7657766219164163543"
+            },
+            "name": "BigForge container registry",
+            "description": "Basic-tier Azure Container Registry with the admin user disabled; the workload identity gets AcrPull."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 50,
+              "metadata": {
+                "description": "Name of the registry (5-50 lowercase alphanumeric characters, globally unique)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "pullPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal (object) ID granted AcrPull on this registry."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "variables": {
+            "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2025-04-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Basic"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "anonymousPullEnabled": false,
+                "publicNetworkAccess": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('name')), parameters('pullPrincipalId'), variables('acrPullRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]",
+                "principalId": "[parameters('pullPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the registry."
+              },
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the registry."
+              },
+              "value": "[parameters('name')]"
+            },
+            "loginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "Registry login server (for example <name>.azurecr.io)."
+              },
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('name')), '2025-04-01').loginServer]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "identity",
+        "rg"
+      ]
+    },
+    "openAi": {
+      "condition": "[parameters('deployAzureOpenAi')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "azure-openai",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('oai-{0}-{1}', take(variables('workloadSlug'), 8), variables('resourceToken'))]"
+          },
+          "location": {
+            "value": "[parameters('azureOpenAiLocation')]"
+          },
+          "userPrincipalId": {
+            "value": "[reference('identity').outputs.principalId.value]"
+          },
+          "deploymentName": {
+            "value": "[parameters('azureOpenAiDeploymentName')]"
+          },
+          "modelName": {
+            "value": "[parameters('azureOpenAiModelName')]"
+          },
+          "modelVersion": {
+            "value": "[parameters('azureOpenAiModelVersion')]"
+          },
+          "skuName": {
+            "value": "[parameters('azureOpenAiSkuName')]"
+          },
+          "capacity": {
+            "value": "[parameters('azureOpenAiCapacity')]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "11106986261157451585"
+            },
+            "name": "BigForge Azure OpenAI (optional)",
+            "description": "Azure OpenAI account with one model deployment. API-key authentication is disabled; the workload identity gets \"Cognitive Services OpenAI User\"."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 64,
+              "metadata": {
+                "description": "Account name. Also used as the custom subdomain, which Microsoft Entra authentication requires, so it must be globally unique."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region. Model availability and quota are regional and per subscription."
+              }
+            },
+            "userPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal (object) ID granted \"Cognitive Services OpenAI User\" on the account."
+              }
+            },
+            "deploymentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the model deployment; this is the value of AZURE_OPENAI_DEPLOYMENT."
+              }
+            },
+            "modelName": {
+              "type": "string",
+              "metadata": {
+                "description": "Model name, for example gpt-4o-mini. Verify current availability before deploying; the default is a placeholder, not a recommendation."
+              }
+            },
+            "modelVersion": {
+              "type": "string",
+              "metadata": {
+                "description": "Model version matching modelName."
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "GlobalStandard",
+              "allowedValues": [
+                "Standard",
+                "GlobalStandard"
+              ],
+              "metadata": {
+                "description": "Deployment SKU. Both options are pay-per-token; no provisioned capacity is created."
+              }
+            },
+            "capacity": {
+              "type": "int",
+              "defaultValue": 10,
+              "minValue": 1,
+              "metadata": {
+                "description": "Capacity in units of 1,000 tokens per minute (rate limit, not a spending cap)."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "variables": {
+            "openAiUserRoleId": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2025-06-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "OpenAI",
+              "sku": {
+                "name": "S0"
+              },
+              "properties": {
+                "customSubDomainName": "[parameters('name')]",
+                "publicNetworkAccess": "Enabled",
+                "disableLocalAuth": true
+              }
+            },
+            {
+              "type": "Microsoft.CognitiveServices/accounts/deployments",
+              "apiVersion": "2025-06-01",
+              "name": "[format('{0}/{1}', parameters('name'), parameters('deploymentName'))]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "capacity": "[parameters('capacity')]"
+              },
+              "properties": {
+                "model": {
+                  "format": "OpenAI",
+                  "name": "[parameters('modelName')]",
+                  "version": "[parameters('modelVersion')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('name')), parameters('userPrincipalId'), variables('openAiUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('openAiUserRoleId'))]",
+                "principalId": "[parameters('userPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Azure OpenAI account."
+              },
+              "value": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Azure OpenAI account."
+              },
+              "value": "[parameters('name')]"
+            },
+            "endpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Endpoint (AZURE_OPENAI_ENDPOINT), for example https://<name>.openai.azure.com/."
+              },
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('name')), '2025-06-01').endpoint]"
+            },
+            "deploymentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the model deployment (AZURE_OPENAI_DEPLOYMENT)."
+              },
+              "value": "[parameters('deploymentName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "identity",
+        "rg"
+      ]
+    },
+    "containerAppsEnvironment": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "container-apps-environment",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('cae-{0}-{1}', variables('workloadSlug'), parameters('environmentName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "logAnalyticsWorkspaceName": {
+            "value": "[reference('monitoring').outputs.workspaceName.value]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "6531091486865466480"
+            },
+            "name": "BigForge Container Apps environment",
+            "description": "Container Apps managed environment on the Consumption workload profile; console and system logs go to Log Analytics."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the managed environment."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "logAnalyticsWorkspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Log Analytics workspace (in this resource group) that receives logs."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2025-01-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "appLogsConfiguration": {
+                  "destination": "log-analytics",
+                  "logAnalyticsConfiguration": {
+                    "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2025-02-01').customerId]",
+                    "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), '2025-02-01').primarySharedKey]"
+                  }
+                },
+                "workloadProfiles": [
+                  {
+                    "name": "Consumption",
+                    "workloadProfileType": "Consumption"
+                  }
+                ],
+                "zoneRedundant": false
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the managed environment."
+              },
+              "value": "[resourceId('Microsoft.App/managedEnvironments', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the managed environment."
+              },
+              "value": "[parameters('name')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "monitoring",
+        "rg"
+      ]
+    },
+    "app": {
+      "condition": "[variables('deployApp')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "container-app",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('ca-{0}-{1}', variables('workloadSlug'), parameters('environmentName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentId": {
+            "value": "[reference('containerAppsEnvironment').outputs.id.value]"
+          },
+          "identityId": {
+            "value": "[reference('identity').outputs.id.value]"
+          },
+          "identityClientId": {
+            "value": "[reference('identity').outputs.clientId.value]"
+          },
+          "containerImage": {
+            "value": "[parameters('containerImage')]"
+          },
+          "registryLoginServer": {
+            "value": "[reference('registry').outputs.loginServer.value]"
+          },
+          "keyVaultUri": {
+            "value": "[reference('keyVault').outputs.vaultUri.value]"
+          },
+          "sessionSecretName": {
+            "value": "[variables('sessionSecretName')]"
+          },
+          "appInsightsName": {
+            "value": "[reference('monitoring').outputs.appInsightsName.value]"
+          },
+          "appMode": {
+            "value": "[parameters('appMode')]"
+          },
+          "minReplicas": {
+            "value": "[parameters('minReplicas')]"
+          },
+          "otlpEndpoint": {
+            "value": "[parameters('otlpEndpoint')]"
+          },
+          "azureOpenAiEndpoint": {
+            "value": "[coalesce(tryGet(if(parameters('deployAzureOpenAi'), reference('openAi'), null()), 'outputs', 'endpoint', 'value'), '')]"
+          },
+          "azureOpenAiDeployment": {
+            "value": "[coalesce(tryGet(if(parameters('deployAzureOpenAi'), reference('openAi'), null()), 'outputs', 'deploymentName', 'value'), '')]"
+          },
+          "azureOpenAiApiVersion": {
+            "value": "[parameters('azureOpenAiApiVersion')]"
+          },
+          "tags": {
+            "value": "[variables('resourceTags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "8947723046778291436"
+            },
+            "name": "BigForge Container App",
+            "description": "The BigForge API and web UI as a single Container App (0.5 vCPU, 1 GiB, min 0 / max 1 replica). State is a single-node SQLite database, so the replica count must never exceed one."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 32,
+              "metadata": {
+                "description": "Name of the Container App (2-32 characters)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "environmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Container Apps managed environment."
+              }
+            },
+            "identityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the user-assigned managed identity (registry pull, Key Vault read, Azure OpenAI)."
+              }
+            },
+            "identityClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID of the user-assigned managed identity."
+              }
+            },
+            "containerImage": {
+              "type": "string",
+              "metadata": {
+                "description": "Fully qualified container image, for example <registry>.azurecr.io/bigforge:<tag>."
+              }
+            },
+            "registryLoginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "Login server of the registry that hosts the image. The identity pulls with AcrPull; the admin user is not used."
+              }
+            },
+            "keyVaultUri": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault data-plane URI, ending in a slash."
+              }
+            },
+            "sessionSecretName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Key Vault secret that holds the value of BIGFORGE_SESSION_SECRET."
+              }
+            },
+            "appInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Insights component in this resource group."
+              }
+            },
+            "appMode": {
+              "type": "string",
+              "defaultValue": "demo",
+              "allowedValues": [
+                "demo",
+                "production"
+              ],
+              "metadata": {
+                "description": "Value of BIGFORGE_MODE."
+              }
+            },
+            "minReplicas": {
+              "type": "int",
+              "defaultValue": 0,
+              "allowedValues": [
+                0,
+                1
+              ],
+              "metadata": {
+                "description": "Minimum replicas. 0 lets the app scale to zero when idle; the ephemeral SQLite database is lost whenever the replica is removed."
+              }
+            },
+            "otlpEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Value of OTEL_EXPORTER_OTLP_ENDPOINT. Empty leaves the variable unset."
+              }
+            },
+            "azureOpenAiEndpoint": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Azure OpenAI endpoint. Empty leaves the live provider unconfigured."
+              }
+            },
+            "azureOpenAiDeployment": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Azure OpenAI deployment name (AZURE_OPENAI_DEPLOYMENT). Only used when an endpoint is set."
+              }
+            },
+            "azureOpenAiApiVersion": {
+              "type": "string",
+              "defaultValue": "2024-10-21",
+              "metadata": {
+                "description": "Azure OpenAI data-plane API version (AZURE_OPENAI_API_VERSION). Only used when an endpoint is set."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags."
+              }
+            }
+          },
+          "variables": {
+            "targetPort": 4747,
+            "maxReplicas": 1,
+            "dataDir": "/app/data",
+            "coreEnv": [
+              {
+                "name": "PORT",
+                "value": "[string(variables('targetPort'))]"
+              },
+              {
+                "name": "HOST",
+                "value": "0.0.0.0"
+              },
+              {
+                "name": "BIGFORGE_MODE",
+                "value": "[parameters('appMode')]"
+              },
+              {
+                "name": "BIGFORGE_DATA_DIR",
+                "value": "[variables('dataDir')]"
+              },
+              {
+                "name": "BIGFORGE_SESSION_SECRET",
+                "secretRef": "session-secret"
+              },
+              {
+                "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                "secretRef": "appinsights-connection-string"
+              }
+            ],
+            "otlpEnv": "[if(empty(parameters('otlpEndpoint')), createArray(), createArray(createObject('name', 'OTEL_EXPORTER_OTLP_ENDPOINT', 'value', parameters('otlpEndpoint'))))]",
+            "azureOpenAiEnv": "[if(empty(parameters('azureOpenAiEndpoint')), createArray(), createArray(createObject('name', 'BIGFORGE_LIVE_PROVIDER', 'value', 'azure-openai'), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', parameters('azureOpenAiEndpoint')), createObject('name', 'AZURE_OPENAI_DEPLOYMENT', 'value', parameters('azureOpenAiDeployment')), createObject('name', 'AZURE_OPENAI_API_VERSION', 'value', parameters('azureOpenAiApiVersion')), createObject('name', 'AZURE_OPENAI_AUTH', 'value', 'entra'), createObject('name', 'AZURE_CLIENT_ID', 'value', parameters('identityClientId'))))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2025-01-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('identityId'))]": {}
+                }
+              },
+              "properties": {
+                "managedEnvironmentId": "[parameters('environmentId')]",
+                "workloadProfileName": "Consumption",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": {
+                    "external": true,
+                    "targetPort": "[variables('targetPort')]",
+                    "transport": "http",
+                    "allowInsecure": false
+                  },
+                  "registries": [
+                    {
+                      "server": "[parameters('registryLoginServer')]",
+                      "identity": "[parameters('identityId')]"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "session-secret",
+                      "keyVaultUrl": "[format('{0}secrets/{1}', parameters('keyVaultUri'), parameters('sessionSecretName'))]",
+                      "identity": "[parameters('identityId')]"
+                    },
+                    {
+                      "name": "appinsights-connection-string",
+                      "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').ConnectionString]"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "bigforge",
+                      "image": "[parameters('containerImage')]",
+                      "resources": {
+                        "cpu": "[json('0.5')]",
+                        "memory": "1Gi"
+                      },
+                      "env": "[concat(variables('coreEnv'), variables('otlpEnv'), variables('azureOpenAiEnv'))]",
+                      "probes": [
+                        {
+                          "type": "Liveness",
+                          "httpGet": {
+                            "path": "/api/health",
+                            "port": "[variables('targetPort')]",
+                            "scheme": "HTTP"
+                          },
+                          "initialDelaySeconds": 10,
+                          "periodSeconds": 30,
+                          "timeoutSeconds": 5,
+                          "failureThreshold": 3
+                        },
+                        {
+                          "type": "Readiness",
+                          "httpGet": {
+                            "path": "/api/ready",
+                            "port": "[variables('targetPort')]",
+                            "scheme": "HTTP"
+                          },
+                          "initialDelaySeconds": 5,
+                          "periodSeconds": 10,
+                          "timeoutSeconds": 5,
+                          "failureThreshold": 3,
+                          "successThreshold": 1
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('minReplicas')]",
+                    "maxReplicas": "[variables('maxReplicas')]",
+                    "rules": [
+                      {
+                        "name": "http-requests",
+                        "http": {
+                          "metadata": {
+                            "concurrentRequests": "10"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "id": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the Container App."
+              },
+              "value": "[resourceId('Microsoft.App/containerApps', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Container App."
+              },
+              "value": "[parameters('name')]"
+            },
+            "fqdn": {
+              "type": "string",
+              "metadata": {
+                "description": "Public fully qualified domain name of the app (HTTPS only)."
+              },
+              "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2025-01-01').configuration.ingress.fqdn]"
+            },
+            "latestRevisionName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the latest revision."
+              },
+              "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2025-01-01').latestRevisionName]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "containerAppsEnvironment",
+        "identity",
+        "keyVault",
+        "monitoring",
+        "openAi",
+        "registry",
+        "rg"
+      ]
+    },
+    "budget": {
+      "condition": "[variables('createBudget')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "budget",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('budget-{0}-{1}', variables('workloadSlug'), parameters('environmentName'))]"
+          },
+          "amount": {
+            "value": "[parameters('budgetAmount')]"
+          },
+          "contactEmail": {
+            "value": "[parameters('budgetContactEmail')]"
+          },
+          "thresholds": {
+            "value": "[parameters('budgetThresholds')]"
+          },
+          "startDate": {
+            "value": "[parameters('budgetStartDate')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.48.1.52935",
+              "templateHash": "17386616858300021887"
+            },
+            "name": "BigForge monthly budget",
+            "description": "Monthly cost budget on the workload resource group with e-mail alerts. A budget only notifies; it does not stop or delete any resource."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the budget."
+              }
+            },
+            "amount": {
+              "type": "int",
+              "metadata": {
+                "description": "Budget amount per month, in the billing currency of the subscription. Must be greater than zero; main.bicep only deploys this module in that case."
+              }
+            },
+            "contactEmail": {
+              "type": "string",
+              "minLength": 5,
+              "metadata": {
+                "description": "E-mail address that receives budget alerts."
+              }
+            },
+            "thresholds": {
+              "type": "array",
+              "items": {
+                "type": "int"
+              },
+              "defaultValue": [
+                50,
+                80,
+                100
+              ],
+              "minLength": 1,
+              "maxLength": 4,
+              "metadata": {
+                "description": "Alert thresholds as a percentage of the budget, evaluated against actual cost. Values must be unique. One additional alert fires at 100 percent of forecasted cost. A budget allows at most five alerts in total."
+              }
+            },
+            "startDate": {
+              "type": "string",
+              "metadata": {
+                "description": "First day of the first budget month, formatted yyyy-MM-dd and set to the first of a month."
+              }
+            }
+          },
+          "variables": {
+            "actualNotifications": "[toObject(parameters('thresholds'), lambda('threshold', format('actual_{0}', lambdaVariables('threshold'))), lambda('threshold', createObject('enabled', true(), 'operator', 'GreaterThan', 'threshold', lambdaVariables('threshold'), 'thresholdType', 'Actual', 'contactEmails', createArray(parameters('contactEmail')), 'locale', 'en-us')))]",
+            "forecastNotification": {
+              "forecast_100": {
+                "enabled": true,
+                "operator": "GreaterThan",
+                "threshold": 100,
+                "thresholdType": "Forecasted",
+                "contactEmails": [
+                  "[parameters('contactEmail')]"
+                ],
+                "locale": "en-us"
+              }
+            }
+          },
+          "resources": {
+            "budget": {
+              "type": "Microsoft.Consumption/budgets",
+              "apiVersion": "2026-06-01",
+              "name": "[parameters('name')]",
+              "properties": {
+                "category": "Cost",
+                "amount": "[parameters('amount')]",
+                "timeGrain": "Monthly",
+                "timePeriod": {
+                  "startDate": "[parameters('startDate')]"
+                },
+                "notifications": "[union(variables('actualNotifications'), variables('forecastNotification'))]"
+              }
+            }
+          },
+          "outputs": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the budget."
+              },
+              "value": "[parameters('name')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "rg"
+      ]
+    }
+  },
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the resource group."
+      },
+      "value": "[parameters('resourceGroupName')]"
+    },
+    "containerRegistryName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the container registry."
+      },
+      "value": "[reference('registry').outputs.name.value]"
+    },
+    "containerRegistryLoginServer": {
+      "type": "string",
+      "metadata": {
+        "description": "Login server of the container registry."
+      },
+      "value": "[reference('registry').outputs.loginServer.value]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Key Vault."
+      },
+      "value": "[reference('keyVault').outputs.name.value]"
+    },
+    "keyVaultUri": {
+      "type": "string",
+      "metadata": {
+        "description": "Data-plane URI of the Key Vault."
+      },
+      "value": "[reference('keyVault').outputs.vaultUri.value]"
+    },
+    "managedIdentityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the user-assigned managed identity."
+      },
+      "value": "[reference('identity').outputs.name.value]"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace."
+      },
+      "value": "[reference('monitoring').outputs.workspaceName.value]"
+    },
+    "appInsightsName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Application Insights component."
+      },
+      "value": "[reference('monitoring').outputs.appInsightsName.value]"
+    },
+    "containerAppsEnvironmentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Container Apps environment."
+      },
+      "value": "[reference('containerAppsEnvironment').outputs.name.value]"
+    },
+    "containerAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Container App. Empty until an image is supplied."
+      },
+      "value": "[coalesce(tryGet(if(variables('deployApp'), reference('app'), null()), 'outputs', 'name', 'value'), '')]"
+    },
+    "containerAppFqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "Public FQDN of the Container App. Empty until an image is supplied."
+      },
+      "value": "[coalesce(tryGet(if(variables('deployApp'), reference('app'), null()), 'outputs', 'fqdn', 'value'), '')]"
+    },
+    "appUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "HTTPS URL of the Container App. Empty until an image is supplied."
+      },
+      "value": "[if(empty(coalesce(tryGet(if(variables('deployApp'), reference('app'), null()), 'outputs', 'fqdn', 'value'), '')), '', format('https://{0}', tryGet(if(variables('deployApp'), reference('app'), null()), 'outputs', 'fqdn', 'value')))]"
+    },
+    "azureOpenAiEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Endpoint of the Azure OpenAI account. Empty unless deployAzureOpenAi is true."
+      },
+      "value": "[coalesce(tryGet(if(parameters('deployAzureOpenAi'), reference('openAi'), null()), 'outputs', 'endpoint', 'value'), '')]"
+    },
+    "azureOpenAiDeploymentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure OpenAI model deployment. Empty unless deployAzureOpenAi is true."
+      },
+      "value": "[coalesce(tryGet(if(parameters('deployAzureOpenAi'), reference('openAi'), null()), 'outputs', 'deploymentName', 'value'), '')]"
+    }
+  }
+}

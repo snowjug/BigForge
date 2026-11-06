@@ -4,8 +4,7 @@ metadata description = 'Monthly cost budget on the workload resource group with 
 @description('Name of the budget.')
 param name string
 
-@description('Budget amount per month, in the billing currency of the subscription.')
-@minValue(1)
+@description('Budget amount per month, in the billing currency of the subscription. Must be greater than zero; main.bicep only deploys this module in that case.')
 param amount int
 
 @description('E-mail address that receives budget alerts.')

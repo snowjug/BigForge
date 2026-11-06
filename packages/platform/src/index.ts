@@ -9,3 +9,4 @@ export * from './db/store';
 export * from './services/demo';
 export * from './services/jobs';
 export * from './services/economics';
+export { DEMO_STEPS } from './services/demo';

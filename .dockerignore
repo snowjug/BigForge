@@ -1,0 +1,58 @@
+# Files excluded from the Docker build context. The Dockerfile runs `npm ci` and `npm run build`
+# itself, so local dependencies and build output must not be sent (or copied) into the image.
+# README.md and docs/ (except screenshots) are intentionally kept.
+
+# Version control and CI metadata
+.git
+.gitignore
+.github
+
+# Dependencies and build output (recreated inside the image)
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+.vite
+.turbo
+
+# Runtime data: local databases, sandboxes, generated workspaces, logs
+.bigforge
+**/.bigforge
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+logs
+tmp
+.tmp
+
+# Secrets and local environment: never send these to a build
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+secrets
+
+# Test and tooling artifacts
+playwright-report
+test-results
+blob-report
+artifacts
+screenshots
+docs/screenshots
+
+# Editors, OS and agent tooling
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+.copilot
+
+# Not needed inside the image
+infra
+Dockerfile
+.dockerignore

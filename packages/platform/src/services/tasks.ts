@@ -259,6 +259,18 @@ export class TaskService {
     };
   }
 
+  /** Fingerprints arbitrary text and reports how it would be matched. Executes nothing. */
+  matchText(
+    ts: TenantStore,
+    prompt: string,
+    log: string | null,
+  ): { fingerprint: Fingerprint; match: FamilyMatch; reflexVersionId: string | null } {
+    const fingerprint = extractFingerprint({ prompt, log });
+    const { match, family } = this.matchFingerprint(ts, fingerprint);
+    const version = match.decision === 'match' && family ? this.selectReflex(ts, family.id) : null;
+    return { fingerprint, match, reflexVersionId: version?.id ?? null };
+  }
+
   detail(ts: TenantStore, task: TaskRow): TaskDetailDto {
     const runs = ts.runs.all(ts.tenantId, {
       where: { taskId: task.id },

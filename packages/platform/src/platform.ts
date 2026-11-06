@@ -8,10 +8,11 @@ import {
   type Provider,
   createLiveProviderFromEnv,
 } from '@bigforge/providers';
-import type { SessionUser, SettingsDto, SystemDto } from '@bigforge/schemas';
+import type { RunDetailDto, SessionUser, SettingsDto, SystemDto } from '@bigforge/schemas';
 import { hashPassword, verifyPassword } from '@bigforge/security';
 import { type Actor, AppError, SYSTEM_ACTOR_NAME } from './actor';
 import { type PlatformConfig } from './config';
+import { toRunDetail, toRunSummary, toTaskDto } from './services/shared';
 import { type Db, migrate, openDatabase } from './db/database';
 import { type UserRow, Store } from './db/store';
 import { createEngine } from './engine';
@@ -182,6 +183,19 @@ export class Platform {
 
   personas() {
     return this.config.mode === 'demo' ? personas() : [];
+  }
+
+  // ---- views ----
+  taskDto = toTaskDto;
+  runSummary = toRunSummary;
+
+  runDetail(tenantId: string, id: string): RunDetailDto {
+    const ts = this.store.forTenant(tenantId);
+    const run = ts.runs.get(tenantId, id);
+    if (!run) throw new AppError(404, 'not_found', 'Run not found');
+    const task = ts.tasks.get(tenantId, run.taskId, ['id', 'title', 'scenarioId', 'variantKey']);
+    if (!task) throw new AppError(404, 'not_found', 'Task not found');
+    return toRunDetail(run, task);
   }
 
   // ---- settings ----
