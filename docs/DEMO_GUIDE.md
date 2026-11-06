@@ -10,7 +10,7 @@ How to present BigForge: setup, a thirty-second pitch, a five-minute script, a t
 2. Open <http://127.0.0.1:4747> in a desktop browser (1440×900 or larger is ideal; 1366×768 works).
 3. Sign in as **Grace** (`grace@acme.test`, password `forge-demo`). Grace is a reviewer: the human promotion step needs a reviewer or admin.
 4. Check the Forge strip at the top: it must read **Deterministic provider · synthetic**. If you want the guided overlay chrome-free, use the presenter bar's presentation layout; `Esc` exits.
-5. Make sure the demo is at step 1. If you ran it before: sign in as **Ada** (`ada@acme.test`, admin) and use **Reset demo** in Settings, then sign back in as Grace. Reset recreates the demo database and starts a new audit chain.
+5. Make sure the demo is at step 1. If you ran it before: sign in as **Ada** (`ada@acme.test`, admin) and use **Reset demo** on the Forge Floor (it asks for confirmation), then sign back in as Grace. Reset recreates the demo database and starts a new audit chain.
 6. Nothing needs the internet (fonts are bundled, the provider is deterministic), so Wi-Fi problems cannot break the demo.
 
 Time budget: the whole demo is about 40 seconds of compute on an idle laptop, spread over thirteen actions (most take a few seconds; Shadow Brain and the mutation proposal take the longest). A progress line shows while an action runs; narrate over it.
@@ -39,7 +39,7 @@ What to point at in the killer moment (steps 15–17): the Forge Graph with the 
 
 Use it when you are short of time or a live action misbehaves.
 
-1. From the presenter bar, **fast-forward** the demo to **complete** (the bar's skip control; as Grace this includes the simulated approval, which is recorded as a seeded approval by a system identity, never as a named reviewer).
+1. On the Forge Floor choose **Fast-forward** and pick **complete** (as Grace this includes the approval step, which is recorded as a seeded approval by a system identity, never as a named reviewer). Then open the three views below from the left rail.
 2. **Run Console** (`/run`) on the held-out task: the Forge Graph with the boundary, the Uncertainty Lens and the baseline-vs-Reflex comparison. (45 s)
 3. **Economics** (`/economics`): token ROI and dollar ROI side by side, the break-even chart, the assumptions. Say what the sign of the dollar ROI means. (30 s)
 4. **Drift** (`/drift`): the fracture across the diverging step, the canary grid, the proposed mutation (not activated). (30 s)
@@ -53,7 +53,7 @@ Headless alternative, if no screen is available: `npm run demo:verify` prints PA
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | A step shows a progress line for a long time | Jobs run in the server process; give it up to a minute on a slow machine. The state lives on the server, so reloading the page is safe. |
 | Port 4747 is in use                        | `PORT=4848 npm run demo`                                                                                     |
-| Want to start over                         | Presenter **Restart** goes back to step 1; as Ada, **Reset demo** in Settings recreates the demo data       |
+| Want to start over                         | Presenter **Restart** goes back to step 1; as Ada, **Reset demo** on the Forge Floor recreates the demo data |
 | The promote button is disabled             | You are not signed in as a reviewer or admin. Sign in as Grace. (An operator sees why it is disabled; that is the point of the role.) |
 | Someone asks if it is calling a real model | No: the strip says deterministic provider, synthetic. Live mode (Azure OpenAI or OpenAI-compatible) is optional and is validated against a protocol stub only |
 | Something looks wrong on screen            | Say what you see and move on: every claim is also checked headlessly by `npm run demo:verify`               |

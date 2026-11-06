@@ -756,13 +756,24 @@ const DEMO_CHANGED: readonly Key[] = [
   keys.economics.all,
   keys.audit.all,
   keys.approvals,
+  // A final authoritative read of the presenter state once the action has settled.
+  keys.demo,
 ];
+
+/**
+ * Replaces the cached demo state and cancels any in-flight poll first: a poll that left before the server saved
+ * the step could otherwise resolve later and overwrite this fresher state with an older one.
+ */
+function setDemoState(qc: QueryClient, data: DemoStateDto): void {
+  void qc.cancelQueries({ queryKey: keys.demo });
+  qc.setQueryData(keys.demo, data);
+}
 
 /** `POST /api/demo/goto`: moves the presenter cursor only. */
 export function useDemoGoto() {
   return useApiMutation({
     mutationFn: (step: number) => http.post<DemoStateDto>('/api/demo/goto', { step }),
-    onData: (data, _vars, qc) => qc.setQueryData(keys.demo, data),
+    onData: (data, _vars, qc) => setDemoState(qc, data),
   });
 }
 
@@ -773,7 +784,7 @@ export function useDemoGoto() {
 export function useDemoPerform() {
   return useApiMutation({
     mutationFn: (step: number) => http.post<DemoStateDto>(`/api/demo/steps/${step}/perform`),
-    onData: (data, _vars, qc) => qc.setQueryData(keys.demo, data),
+    onData: (data, _vars, qc) => setDemoState(qc, data),
     invalidates: DEMO_CHANGED,
   });
 }
@@ -785,7 +796,7 @@ export type DemoSeedStage =
 export function useDemoSeed() {
   return useApiMutation({
     mutationFn: (stage: DemoSeedStage) => http.post<DemoStateDto>('/api/demo/seed', { stage }),
-    onData: (data, _vars, qc) => qc.setQueryData(keys.demo, data),
+    onData: (data, _vars, qc) => setDemoState(qc, data),
     invalidates: DEMO_CHANGED,
   });
 }
@@ -798,7 +809,7 @@ export function useDemoReset() {
     retry: false,
     onSuccess: async (data) => {
       await dropTenantData(qc, true);
-      qc.setQueryData(keys.demo, data);
+      setDemoState(qc, data);
     },
   });
 }
