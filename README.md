@@ -64,6 +64,7 @@ Open <http://127.0.0.1:4747>, sign in as **Grace** (reviewer) and choose **Start
 | `linus@acme.test`     | operator | run tasks, replay, shadow, canary (cannot promote)        |
 | `vera@acme.test`      | viewer   | read-only                                                 |
 | `gus@globex.test`     | admin    | a different tenant: cannot see Acme's data                |
+| `gwen@globex.test`    | reviewer | the other tenant's reviewer: cannot see Acme's data either |
 
 Password for all of them: `forge-demo`.
 
