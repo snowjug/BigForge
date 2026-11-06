@@ -31,6 +31,7 @@ import {
 import { type Provider, costOf } from '@bigforge/providers';
 import type {
   BoundaryResolution,
+  FileChange,
   JsonValue,
   Outcome,
   PricingConfig,
@@ -106,12 +107,6 @@ export async function materialize(
       if (!deps.keepWorkspaces) await rm(root, { recursive: true, force: true });
     },
   };
-}
-
-export interface FileChange {
-  file: string;
-  before: string;
-  after: string;
 }
 
 export interface RunResult {

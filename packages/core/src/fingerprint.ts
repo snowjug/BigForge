@@ -241,7 +241,7 @@ const containment = (subset: readonly string[], superset: readonly string[]): nu
 
 const eq = (a: unknown, b: unknown): number => (a !== null && a !== undefined && a === b ? 1 : 0);
 
-export interface Comparison {
+export interface FingerprintComparison {
   score: number;
   features: MatchFeature[];
   hardGates: HardGate[];
@@ -265,7 +265,7 @@ export function compareFingerprints(
   task: Fingerprint,
   family: Fingerprint,
   signatureMode: 'containment' | 'jaccard' = 'containment',
-): Comparison {
+): FingerprintComparison {
   const signature =
     signatureMode === 'containment'
       ? containment(task.failure.signatures, family.failure.signatures)

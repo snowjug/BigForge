@@ -6,6 +6,7 @@ import {
   type ReflexSpec,
   ReflexSpec as ReflexSpecSchema,
   type ReflexStep,
+  type StepResult,
 } from '@bigforge/schemas';
 import { resolveBoundary } from './boundary';
 import {
@@ -44,15 +45,6 @@ export interface ExecuteOptions {
   allowBoundary: boolean;
   /** Wall-clock deadline for the whole execution. */
   now?: () => number;
-}
-
-export interface StepResult {
-  stepId: string;
-  operator: string;
-  status: 'ok' | 'escalated' | 'stopped' | 'skipped';
-  executor: 'local' | 'model';
-  summary: string;
-  confidence?: number;
 }
 
 export interface ExecutionResult {

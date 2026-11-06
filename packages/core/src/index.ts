@@ -11,3 +11,8 @@ export * from './executor';
 export * from './fingerprint';
 export * from './agent';
 export * from './compiler';
+export * from './compare';
+export * from './lifecycle';
+export * from './trust';
+export * from './economics';
+export * from './diff';

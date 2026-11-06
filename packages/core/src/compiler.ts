@@ -1,4 +1,10 @@
-import type { PricingConfig } from '@bigforge/schemas';
+import type {
+  AlignmentColumn,
+  AlignmentRow,
+  CompileReport,
+  PricingConfig,
+  StepDecision,
+} from '@bigforge/schemas';
 import {
   type JsonValue,
   type ReflexSpec,
@@ -52,63 +58,11 @@ export interface CompileInput {
   mutationOf?: { reflexVersion: string; reason: string } | null;
   minTraces?: number;
   minVariants?: number;
+  /** Trace kinds accepted as evidence (default: baseline only). Mutations also learn from canary reference runs. */
+  allowedRunKinds?: Trace['runKind'][];
   ids: IdGenerator;
   clock: Clock;
   pricing: PricingConfig;
-}
-
-export interface AlignmentCell {
-  key: string;
-  present: boolean;
-  count: number;
-  /** Short description of what the baseline did here (tool + argument shape). */
-  detail: string;
-}
-
-export interface AlignmentColumn {
-  key: string;
-  kind: 'turn' | 'decision';
-  conservation: number;
-  presentIn: number;
-  meanPosition: number;
-  baselineTokens: number;
-  /** Fields whose values differ between traces at this step (the variable slots). */
-  variableSlots: string[];
-  classification: 'invariant' | 'common' | 'variable';
-  replacedBy: string | null;
-}
-
-export interface AlignmentRow {
-  traceId: string;
-  scenarioId: string;
-  variantKey: string;
-  cells: AlignmentCell[];
-}
-
-export interface StepDecision {
-  stepId: string;
-  chosen: string;
-  alternatives: {
-    operator: string;
-    consistent: boolean;
-    matched: number;
-    of: number;
-    detail: string;
-  }[];
-  reason: string;
-}
-
-export interface CompileReport {
-  compilerVersion: string;
-  tracesUsed: number;
-  variants: string[];
-  columns: AlignmentColumn[];
-  rows: AlignmentRow[];
-  decisions: StepDecision[];
-  excludedBehaviours: { purpose: string; occurrences: number; reason: string }[];
-  uncovered: string[];
-  baselineTokensPerTask: number;
-  baselineModelCallsPerTask: number;
 }
 
 interface Behaviour {
@@ -174,7 +128,12 @@ function behaviourOf(trace: Trace): Behaviour {
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-function guardTrace(traces: Trace[], minTraces: number, minVariants: number): void {
+function guardTrace(
+  traces: Trace[],
+  minTraces: number,
+  minVariants: number,
+  allowedKinds: readonly Trace['runKind'][],
+): void {
   const reasons: string[] = [];
   if (traces.length < minTraces)
     reasons.push(
@@ -186,7 +145,7 @@ function guardTrace(traces: Trace[], minTraces: number, minVariants: number): vo
       `Variation analysis: ${variants.size} distinct variant(s) is fewer than the ${minVariants} required.`,
     );
   for (const t of traces) {
-    if (t.runKind !== 'baseline')
+    if (!allowedKinds.includes(t.runKind))
       reasons.push(`Trace ${t.id} is a ${t.runKind} run; compile only from baseline agent traces.`);
     if (t.outcome.status !== 'success')
       reasons.push(
@@ -214,7 +173,12 @@ export async function compileReflex(
   input: CompileInput,
 ): Promise<{ spec: ReflexSpec; report: CompileReport }> {
   const { traces, library } = input;
-  guardTrace(traces, input.minTraces ?? 3, input.minVariants ?? 2);
+  guardTrace(
+    traces,
+    input.minTraces ?? 3,
+    input.minVariants ?? 2,
+    input.allowedRunKinds ?? ['baseline'],
+  );
   const n = traces.length;
   const behaviours = traces.map(behaviourOf);
 
