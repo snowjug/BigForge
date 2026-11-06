@@ -77,7 +77,7 @@ Password for all of them: `forge-demo`.
 | `npm run test:e2e`     | Playwright end-to-end and accessibility tests against the production bundle (`npm run build` first; `npx playwright install chromium` once) |
 | `npm run validate`     | format check, lint, strict typecheck, tests and build                                          |
 
-Or with Docker: `docker build -t bigforge . && docker run --rm -p 4747:4747 bigforge`.
+Or with Docker: `docker build -t bigforge . && docker run --rm -p 4747:4747 bigforge`. The whole end-to-end suite can be pointed at a fresh container with `E2E_BASE_URL=http://127.0.0.1:4747 npm run test:e2e`.
 
 Reaching the server through a port forward, reverse proxy or another machine? `npm run demo` binds to loopback and accepts only loopback `Host` headers (a DNS-rebinding defence). List other names in `BIGFORGE_ALLOWED_HOSTS` (comma separated), or deliberately expose the demo on all interfaces with `HOST=0.0.0.0 BIGFORGE_MODE=demo npm run demo`, which is what the container does. The demo is plain HTTP and its identities are public, so keep it off untrusted networks.
 

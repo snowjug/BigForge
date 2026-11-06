@@ -9,6 +9,15 @@ const root = path.resolve(import.meta.dirname, '..');
 const port = process.env.PORT ?? '4747';
 const dev = process.argv.includes('--dev');
 
+// The server uses the built-in node:sqlite; older Node versions fail later with an obscure error.
+const nodeMajor = Number.parseInt(process.versions.node, 10);
+if (nodeMajor < 24) {
+  console.error(
+    `BigForge needs Node.js 24 or newer (it uses the built-in node:sqlite); this is Node.js ${process.versions.node}.`,
+  );
+  process.exit(1);
+}
+
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', ...opts });
   if (r.status !== 0) process.exit(r.status ?? 1);

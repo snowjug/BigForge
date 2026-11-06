@@ -23,6 +23,11 @@ Honest, current limitations. Updated as the implementation evolves. Anything not
 - Container isolation is available through the provided Dockerfile but is not a validated security boundary.
 - Accepted findings from the independent security review (everything else it reported was fixed; see [SECURITY.md](./SECURITY.md)): sessions are stateless and cannot be revoked before they expire; the sign-in rate limiter is a per-process fixed window; in live mode the baseline agent's tool observations are not screened for injected instructions (boundary evidence is); secret redaction is pattern-based and can miss novel formats.
 
+## Dependencies and supply chain
+
+- `npm audit --omit=dev --audit-level=high` (the CI gate, `npm run audit:deps`) reports 0 vulnerabilities for the production tree. A full `npm audit` also lists 10 **moderate** advisories, all from `minimatch` 7.0.0 to 11.0.0 inside the lint toolchain (`eslint`, `typescript-eslint`), which never ships in the container image. The only fix npm offers is a major downgrade of ESLint, so they are accepted until those packages ship a patched `minimatch`.
+- The container image was not scanned for operating-system package vulnerabilities, and its base image is pinned to a major tag (`node:24-slim`), not a digest. No SBOM or image signing is produced.
+
 ## Providers
 
 - **Deterministic provider is not a model.** It is a scripted policy that stands in for one so the demo runs offline.
