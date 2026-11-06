@@ -46,7 +46,7 @@ flowchart LR
 
 ## Try it
 
-Requirements: **Node.js 24+** (BigForge uses the built-in `node:sqlite`) and npm 11. No network access, accounts or API keys are needed after `npm install`.
+Requirements: **Node.js 24+** (BigForge uses the built-in `node:sqlite`) and npm 11. No network access, accounts or API keys are needed after `npm install`. Validated on Linux (Ubuntu 24.04); macOS has not been tried; on Windows use WSL 2 or Docker (the launcher and the command sandbox assume a POSIX system).
 
 ```bash
 git clone https://github.com/snowjug/BigForge.git

@@ -21,6 +21,7 @@ Honest, current limitations. Updated as the implementation evolves. Anything not
 
 - **Application-level containment only.** Commands use structured arguments, allowlists, confined working directories, scrubbed environments, timeouts and output caps. This is not an OS-level sandbox; there is no network namespace, seccomp, or cgroup enforcement.
 - Container isolation is available through the provided Dockerfile but is not a validated security boundary.
+- **Platforms.** Everything was validated on Linux (Ubuntu 24.04, Node 24) and in the Linux container. macOS and native Windows were not tried: the demo launcher spawns `npm` directly and the command sandbox scrubs the environment with a POSIX `PATH`, so on Windows use WSL 2 or Docker.
 - Accepted findings from the independent security review (everything else it reported was fixed; see [SECURITY.md](./SECURITY.md)): sessions are stateless and cannot be revoked before they expire; the sign-in rate limiter is a per-process fixed window; in live mode the baseline agent's tool observations are not screened for injected instructions (boundary evidence is); secret redaction is pattern-based and can miss novel formats.
 - Production mode (`BIGFORGE_MODE=production`) hides the guided demo and the demo endpoints and was smoke-tested through the browser (sign-in as the bootstrap admin, Forge Floor, Run Console), but a few empty-state hints on the Economics and Drift views still mention "demo steps" there.
 
