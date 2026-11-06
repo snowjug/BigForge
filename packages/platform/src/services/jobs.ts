@@ -128,11 +128,20 @@ export class JobService {
           const ids = params.scenarioIds as string[];
           let done = 0;
           const taskIds: Record<string, string> = {};
+          const env = this.p.tasks.environment(ts).toolchainVersion;
           for (const id of ids) {
             progress(done, ids.length, `Solving ${id} with the baseline agent`);
-            const task = await this.p.tasks.intake(actor, id);
-            await this.p.tasks.run(actor, task.id, 'baseline');
-            taskIds[id] = task.id;
+            // A failure the baseline agent already solved (for example from the Run Console) is not solved twice.
+            const solved = ts.tasks
+              .all(ts.tenantId, { where: { scenarioId: id, origin: 'intake' } })
+              .find((t) => t.envVersion === env && t.status === 'solved');
+            if (solved) {
+              taskIds[id] = solved.id;
+            } else {
+              const task = await this.p.tasks.intake(actor, id);
+              await this.p.tasks.run(actor, task.id, 'baseline');
+              taskIds[id] = task.id;
+            }
             done += 1;
           }
           progress(done, ids.length, 'Done');

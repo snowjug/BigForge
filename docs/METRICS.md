@@ -46,7 +46,7 @@ Cognitive ROI = (cost avoided − cost to learn) ÷ cost to learn
 - **Cost avoided** per execution = baseline tokens (or cost) for the task − the Reflex's actual tokens. If a **measured baseline reference** exists for that task the basis is `measured_reference`; otherwise it is the mean of baseline samples (`counterfactual_estimate`, label `estimated`); before any live execution it is the shadow-run difference (`shadow_estimate`).
 - **Uncertainty interval**: mean ± 1.96 · σ/√n of baseline samples, propagated to ROI.
 - **Realised** = what the live executions saved so far. **Projected** = per-execution saving × an explicit assumed execution count (default 200) and is *not a forecast*.
-- **Break-even** = ⌈investment tokens ÷ per-execution saving⌉ executions. The break-even chart plots cumulative baseline tokens against cumulative BigForge tokens (investment first, then the baseline cost minus the same per-execution saving), so its two lines cross exactly at the break-even.
+- **Break-even** = ⌈investment tokens ÷ per-execution saving⌉ executions. The break-even chart plots cumulative baseline tokens against cumulative BigForge tokens (investment first) on the same basis as that saving, namely the mean baseline and Reflex tokens of the executions that produced it, so its two lines cross exactly at the break-even.
 
 ## Reflex confidence (trust)
 

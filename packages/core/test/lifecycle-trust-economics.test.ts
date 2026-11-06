@@ -164,6 +164,16 @@ describe('cognitive economics', () => {
     expect(r.perExecution.tokensAvoided).toBe(39_500);
     expect(r.realized.netTokens).toBe(39_500 - 103_000);
     expect(r.projected.breakEvenExecutions).toBe(Math.ceil(103_000 / 39_500));
+    // The plotted lines use the same per-execution basis, so they cross at the reported break-even.
+    const first = r.series[0];
+    const last = r.series[r.series.length - 1];
+    if (!first || !last) throw new Error('expected a series');
+    const span = last.execution - first.execution;
+    const baselineSlope = (last.baselineCumulative - first.baselineCumulative) / span;
+    const reflexSlope = (last.bigforgeCumulative - first.bigforgeCumulative) / span;
+    expect(first.bigforgeCumulative).toBe(103_000);
+    expect(baselineSlope - reflexSlope).toBeCloseTo(39_500, -1);
+    expect(103_000 / (baselineSlope - reflexSlope)).toBeCloseTo(103_000 / 39_500, 1);
     expect(r.projected.roi).toBeGreaterThan(0);
     expect(r.projected.roiInterval?.low).toBeLessThanOrEqual(r.projected.roi ?? 0);
     expect(r.crr.value).toBeCloseTo(0.875, 3);

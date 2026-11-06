@@ -75,6 +75,8 @@ export function computeEconomics(input: EconomicsInput): EconomicsReport {
       tokens: refTokens - r.usage.tokens,
       cost: refCost - r.usage.costUsd,
       measured: r.reference !== null,
+      baselineTokens: refTokens,
+      reflexTokens: r.usage.tokens,
     };
   });
   const realizedTokens = sum(savings.map((s) => s.tokens));
@@ -193,18 +195,21 @@ export function computeEconomics(input: EconomicsInput): EconomicsReport {
   );
   const verifiedAll = [...live, ...shadow];
 
-  // Cumulative token series: baseline pays per execution; BigForge pays the investment up front and then
-  // the baseline cost minus the headline per-execution saving. Using the same saving as the headline ROI
-  // and break-even means the two lines cross exactly where the break-even says they do.
+  // Cumulative token series. Both lines are drawn on the same basis as the headline per-execution saving
+  // (mean baseline and Reflex tokens of the executions that produced it), so they cross exactly where the
+  // break-even says they do. Before any live execution the means of all samples are used.
+  const baselinePerExecution =
+    savings.length > 0 ? mean(savings.map((s) => s.baselineTokens)) : baselineMean;
+  const reflexPerExecution =
+    savings.length > 0 ? mean(savings.map((s) => s.reflexTokens)) : reflexMeanTokens;
   const series: EconomicsReport['series'] = [];
   const steps = Math.max(12, Math.min(N, 40));
-  const bigforgePerExecution = Math.max(0, baselineMean - perTokens);
   for (let i = 0; i <= steps; i += 1) {
     const k = Math.round((i / steps) * N);
     series.push({
       execution: k,
-      baselineCumulative: Math.round(k * baselineMean),
-      bigforgeCumulative: Math.round(investTokens + k * bigforgePerExecution),
+      baselineCumulative: Math.round(k * baselinePerExecution),
+      bigforgeCumulative: Math.round(investTokens + k * reflexPerExecution),
     });
   }
 

@@ -448,18 +448,34 @@ export class DemoService {
       if (!context.reflexVersionId) throw conflict('The candidate Reflex does not exist yet');
       return context.reflexVersionId;
     };
+    const versionRow = () => {
+      const row = ts.versions.get(ts.tenantId, needVersion());
+      if (!row) throw conflict('The Reflex version no longer exists');
+      return row;
+    };
+    const currentEnv = () => this.p.tasks.environment(ts).toolchainVersion;
+    /** Work done from the regular pages (not the presenter) counts: a step adopts what already exists. */
+    const existingTask = (scenarioId: string) =>
+      ts.tasks
+        .all(ts.tenantId, { where: { scenarioId, origin: 'intake' }, order: 'created_at ASC' })
+        .find((t) => t.envVersion === currentEnv());
 
     switch (id) {
       case 'failure_enters': {
-        const task = await tasks.intake(actor, LEARNING_IDS[0] as string);
-        this.save(actor.tenantId, (c) => (c.taskIds[task.scenarioId] = task.id), n);
+        const first = LEARNING_IDS[0] as string;
+        const task = existingTask(first) ?? (await tasks.intake(actor, first));
+        this.save(actor.tenantId, (c) => (c.taskIds[first] = task.id), n);
         return;
       }
       case 'baseline_handles': {
         const taskId = context.taskIds[LEARNING_IDS[0] as string];
         if (!taskId) throw conflict('The first task has not been received');
-        const run = await tasks.run(actor, taskId, 'auto');
-        this.save(actor.tenantId, (c) => (c.firstRunId = run.primary.id), n);
+        const prior = ts.runs.all(ts.tenantId, {
+          where: { taskId, kind: 'baseline' },
+          order: 'created_at ASC',
+        })[0];
+        const runId = prior?.id ?? (await tasks.run(actor, taskId, 'auto')).primary.id;
+        this.save(actor.tenantId, (c) => (c.firstRunId = runId), n);
         return;
       }
       case 'variations': {
@@ -484,44 +500,59 @@ export class DemoService {
       }
       case 'invariants': {
         if (!context.familyId) throw conflict('No task family has been discovered yet');
-        const version = await this.p.learning.compile(actor, context.familyId);
-        this.save(actor.tenantId, (c) => (c.reflexVersionId = version.id), n);
+        const familyId = context.familyId;
+        const existing = ts.versions
+          .all(ts.tenantId, { order: 'created_at ASC' })
+          .find((v) => v.spec.familyId === familyId && !v.spec.provenance.mutationOf);
+        const versionId = existing?.id ?? (await this.p.learning.compile(actor, familyId)).id;
+        this.save(actor.tenantId, (c) => (c.reflexVersionId = versionId), n);
         return;
       }
       case 'replay': {
-        await this.p.validation.replay(actor, needVersion());
+        // A candidate that is no longer a candidate has already been replayed (from the Reflexes page).
+        if (versionRow().status === 'candidate')
+          await this.p.validation.replay(actor, needVersion());
         this.save(actor.tenantId, () => undefined, n);
         return;
       }
       case 'shadow': {
-        await this.runJob(actor, 'shadow', {
-          versionId: needVersion(),
-          scenarioIds: [...SHADOW_IDS],
-        });
+        // Only a Reflex still in shadow needs the runs; later statuses mean the evidence already exists.
+        if (versionRow().status === 'shadow')
+          await this.runJob(actor, 'shadow', {
+            versionId: needVersion(),
+            scenarioIds: [...SHADOW_IDS],
+          });
         this.save(actor.tenantId, () => undefined, n);
         return;
       }
       case 'promote': {
         const versionId = needVersion();
-        if (options.simulateHuman) {
-          this.p.validation.promote(
-            seederActor(actor),
-            versionId,
-            `Seeded demo approval: fast-forward requested by ${actor.name}. Not an individual review of the evidence`,
-            { seeded: true },
-          );
-        } else {
-          this.p.validation.promote(
-            actor,
-            versionId,
-            'Approved after inspecting the evidence in the guided demo',
-          );
+        // A reviewer may already have promoted it from the Reflexes page: that decision is real, so adopt it.
+        const alreadyApproved =
+          ts.approvals.all(ts.tenantId, {
+            where: { reflexVersionId: versionId, action: 'promote' },
+          }).length > 0;
+        if (!alreadyApproved) {
+          if (options.simulateHuman) {
+            this.p.validation.promote(
+              seederActor(actor),
+              versionId,
+              `Seeded demo approval: fast-forward requested by ${actor.name}. Not an individual review of the evidence`,
+              { seeded: true },
+            );
+          } else {
+            this.p.validation.promote(
+              actor,
+              versionId,
+              'Approved after inspecting the evidence in the guided demo',
+            );
+          }
         }
         this.save(actor.tenantId, () => undefined, n);
         return;
       }
       case 'new_task': {
-        const task = await tasks.intake(actor, HELD_OUT_ID);
+        const task = existingTask(HELD_OUT_ID) ?? (await tasks.intake(actor, HELD_OUT_ID));
         this.save(actor.tenantId, (c) => (c.taskIds[HELD_OUT_ID] = task.id), n);
         return;
       }
@@ -545,17 +576,26 @@ export class DemoService {
         return;
       }
       case 'canary': {
-        const result = (await this.runJob(actor, 'canary', { versionId: needVersion() })) as {
-          id: string;
-        };
-        this.save(actor.tenantId, (c) => (c.driftCheckId = result.id), n);
+        // The canary may already have run from the Drift page (which leaves the Reflex in shadow).
+        const prior = ts.driftChecks
+          .all(ts.tenantId, { where: { reflexVersionId: needVersion() }, order: 'created_at DESC' })
+          .find((c) => c.envVersion === currentEnv());
+        const checkId =
+          prior?.id ??
+          ((await this.runJob(actor, 'canary', { versionId: needVersion() })) as { id: string }).id;
+        this.save(actor.tenantId, (c) => (c.driftCheckId = checkId), n);
         return;
       }
       case 'mutation': {
-        const m = (await this.runJob(actor, 'mutation', { versionId: needVersion() })) as {
-          id: string;
-          toVersionId: string;
-        };
+        const prior = ts.mutations
+          .all(ts.tenantId, { order: 'created_at DESC' })
+          .find((m) => m.fromVersionId === needVersion());
+        const m = prior
+          ? { id: prior.id, toVersionId: prior.toVersionId }
+          : ((await this.runJob(actor, 'mutation', { versionId: needVersion() })) as {
+              id: string;
+              toVersionId: string;
+            });
         this.save(
           actor.tenantId,
           (c) => {

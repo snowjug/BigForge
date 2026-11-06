@@ -54,6 +54,21 @@ Dependencies point inward: the web app never imports server code; the engine nev
 - **Packages consumed as TypeScript source** with `erasableSyntaxOnly`; the production server is one esbuild bundle (`dist/server/main.mjs`) with third-party packages external.
 - **Deterministic provider** instead of mocks: the agent loop, tool gateway, firewall, verification and compiler run *identical code* in demo and live mode. Only the `Provider` differs.
 
+## Web app
+
+`apps/web` is a React 19 + strict TypeScript SPA built with Vite, React Router and TanStack Query; there is no UI-component or chart library, and fonts are self-hosted so it works offline. The conventions every page follows are in [`apps/web/src/routes.md`](../apps/web/src/routes.md); the visual system is [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
+
+| Folder | Role |
+|---|---|
+| `src/ui` | the UI kit (Button, Panel, DataTable, Drawer, Metric, Provenance badge, Gauge, Tabs, Toast...) exported through one barrel |
+| `src/api` | one typed client (`X-BigForge-Client`, same-origin cookies, `ApiError`) and one hook per endpoint; wire types are `@bigforge/schemas` types only |
+| `src/shell`, `src/auth`, `src/theme` | rail, Forge strip, persona switcher, role matrix mirror, theme and motion preferences |
+| `src/demo` | the guided-demo presenter (`useDemo`, `useDemoTarget` regions that the presenter highlights) |
+| `src/pages/<area>` | one folder per page with its view-model logic in plain `.ts` files that have Vitest tests |
+| `src/viz` | the signature visualizations: Forge Graph, Reflex glyph, Reflex DNA, execution playback, Token Flow, Uncertainty Lens, economics and drift charts |
+
+Every visualization has a keyboard-reachable text or table equivalent, every number shows its provenance badge, and the server remains the only enforcement point for roles (the UI only mirrors them).
+
 ## The learning loop
 
 ```mermaid
