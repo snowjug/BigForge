@@ -36,12 +36,22 @@ param tags object = {}
 @description('Fully qualified image to run, for example <registry>.azurecr.io/bigforge:<tag>. Leave empty for the first (foundation) deployment: the registry is created by this template and starts empty, so the Container App is only created once an image is given.')
 param containerImage string = ''
 
-@description('Value of BIGFORGE_MODE. "production" requires a session secret; it is not a claim of production readiness.')
+@description('Value of BIGFORGE_MODE. "production" seeds no demo users and needs bootstrap-admin variables that these templates do not set, so nobody could sign in; see docs/AZURE.md. It is not a claim of production readiness.')
 @allowed([
   'demo'
   'production'
 ])
 param appMode string = 'demo'
+
+@description('Value of BIGFORGE_PROVIDER_MODE. "live" makes the app call the live provider that deployAzureOpenAi configures (billed per token); "deterministic" keeps the offline scripted provider even when Azure OpenAI exists.')
+@allowed([
+  'deterministic'
+  'live'
+])
+param providerMode string = 'deterministic'
+
+@description('CIDR ranges allowed to reach the public endpoint, for example 203.0.113.7/32. Empty (default) leaves the endpoint open to the internet. Demo mode seeds publicly documented credentials, so restrict access to anything you leave running.')
+param allowedIpRanges string[] = []
 
 @description('Minimum replicas. 0 lets the app scale to zero when idle. The maximum is fixed at 1 because state is a single-node SQLite database.')
 @allowed([
@@ -53,6 +63,13 @@ param minReplicas int = 0
 @description('Value of the BIGFORGE_SESSION_SECRET Key Vault secret. Supply it at deployment time (main.bicepparam reads it from an environment variable) and never commit it. When empty, no secret is written and one must already exist in the vault before the Container App is created.')
 @secure()
 param sessionSecret string = ''
+
+@description('E-mail of the first admin (BIGFORGE_BOOTSTRAP_ADMIN_EMAIL). Used only when appMode is "production" and bootstrapAdminPassword is also set; ignored in demo mode, which seeds its own demo users.')
+param bootstrapAdminEmail string = ''
+
+@description('Password of the first admin (BIGFORGE_BOOTSTRAP_ADMIN_PASSWORD), at least 12 characters; the app ignores a shorter one. Stored as a Key Vault secret and read by the Container App through the managed identity. The operator supplies it at deployment time (main.bicepparam reads an environment variable) and must keep it: the templates never generate it. Never commit it. Ignored in demo mode.')
+@secure()
+param bootstrapAdminPassword string = ''
 
 @description('Optional value of OTEL_EXPORTER_OTLP_ENDPOINT. Empty leaves the variable unset.')
 param otlpEndpoint string = ''
@@ -69,6 +86,9 @@ param logRetentionDays int = 30
 @description('Daily ingestion cap of the Log Analytics workspace in GB. Use -1 for no cap. At the cap, ingestion of billable data stops until the daily reset.')
 @minValue(-1)
 param logDailyQuotaGb int = 1
+
+@description('Opt in to Azure Monitor "Statsbeat" SDK-usage telemetry, which the exporter packages send to Microsoft. Off by default: the Container App sets the opt-out variables.')
+param enableStatsbeat bool = false
 
 // ---------------------------------------------------------------------------
 // Key Vault
@@ -158,8 +178,13 @@ var resourceTags = union(
 )
 
 var sessionSecretName = 'bigforge-session-secret'
+var bootstrapAdminPasswordSecretName = 'bigforge-bootstrap-admin-password'
 var deployApp = !empty(containerImage)
 var createBudget = budgetAmount > 0 && !empty(budgetContactEmail)
+
+// Production mode seeds no demo users, so it needs the operator's admin. It is wired only when
+// both values are given; demo mode ignores them.
+var wireBootstrapAdmin = appMode == 'production' && !empty(bootstrapAdminEmail) && !empty(bootstrapAdminPassword)
 
 // ---------------------------------------------------------------------------
 // Resources
@@ -205,6 +230,8 @@ module keyVault 'modules/key-vault.bicep' = {
     workloadPrincipalId: identity.outputs.principalId
     sessionSecretName: sessionSecretName
     sessionSecretValue: sessionSecret
+    bootstrapAdminPasswordSecretName: bootstrapAdminPasswordSecretName
+    bootstrapAdminPasswordValue: wireBootstrapAdmin ? bootstrapAdminPassword : ''
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     tags: resourceTags
   }
@@ -263,11 +290,16 @@ module app 'modules/container-app.bicep' = if (deployApp) {
     sessionSecretName: sessionSecretName
     appInsightsName: monitoring.outputs.appInsightsName
     appMode: appMode
+    providerMode: providerMode
+    allowedIpRanges: allowedIpRanges
     minReplicas: minReplicas
     otlpEndpoint: otlpEndpoint
     azureOpenAiEndpoint: openAi.?outputs.endpoint ?? ''
     azureOpenAiDeployment: openAi.?outputs.deploymentName ?? ''
     azureOpenAiApiVersion: azureOpenAiApiVersion
+    bootstrapAdminEmail: wireBootstrapAdmin ? bootstrapAdminEmail : ''
+    bootstrapAdminPasswordSecretName: wireBootstrapAdmin ? bootstrapAdminPasswordSecretName : ''
+    enableStatsbeat: enableStatsbeat
     tags: resourceTags
   }
 }

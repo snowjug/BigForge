@@ -8,13 +8,18 @@ using './main.bicep'
 // passed to `az deployment sub ...` (see the `location` parameter in main.bicep).
 //
 // Environment variables read by this file:
-//   BIGFORGE_AZURE_ENVIRONMENT     dev | test | prod                 (default: dev)
-//   BIGFORGE_AZURE_APP_MODE        demo | production                 (default: demo)
-//   BIGFORGE_AZURE_IMAGE           image to run; empty = foundation only, no Container App
-//   BIGFORGE_AZURE_SESSION_SECRET  value for the Key Vault session secret; empty = do not write
-//   BIGFORGE_AZURE_OPENAI          true | false                      (default: false)
-//   BIGFORGE_AZURE_BUDGET_AMOUNT   monthly budget; 0 = no budget     (default: 0)
-//   BIGFORGE_AZURE_BUDGET_EMAIL    alert e-mail; required for a budget (default: empty)
+//   BIGFORGE_AZURE_ENVIRONMENT      dev | test | prod                 (default: dev)
+//   BIGFORGE_AZURE_APP_MODE         demo | production                 (default: demo)
+//   BIGFORGE_AZURE_PROVIDER_MODE    deterministic | live              (default: deterministic)
+//   BIGFORGE_AZURE_IMAGE            image to run; empty = foundation only, no Container App
+//   BIGFORGE_AZURE_SESSION_SECRET   value for the Key Vault session secret; empty = do not write
+//   BIGFORGE_AZURE_ADMIN_EMAIL      first admin e-mail; production mode only (default: empty)
+//   BIGFORGE_AZURE_ADMIN_PASSWORD   first admin password, 12+ characters; production mode only.
+//                                   Chosen and kept by the operator; the templates never generate it.
+//   BIGFORGE_AZURE_ALLOWED_IPS      comma-separated CIDR ranges allowed to reach the app; empty = open
+//   BIGFORGE_AZURE_OPENAI           true | false                      (default: false)
+//   BIGFORGE_AZURE_BUDGET_AMOUNT    monthly budget; 0 = no budget     (default: 0)
+//   BIGFORGE_AZURE_BUDGET_EMAIL     alert e-mail; required for a budget (default: empty)
 
 param workloadName = 'bigforge'
 param environmentName = readEnvironmentVariable('BIGFORGE_AZURE_ENVIRONMENT', 'dev')
@@ -23,13 +28,22 @@ param tags = {}
 // Application
 param containerImage = readEnvironmentVariable('BIGFORGE_AZURE_IMAGE', '')
 param appMode = readEnvironmentVariable('BIGFORGE_AZURE_APP_MODE', 'demo')
+param providerMode = readEnvironmentVariable('BIGFORGE_AZURE_PROVIDER_MODE', 'deterministic')
+param allowedIpRanges = filter(
+  split(readEnvironmentVariable('BIGFORGE_AZURE_ALLOWED_IPS', ''), ','),
+  range => !empty(range)
+)
 param minReplicas = 0
 param sessionSecret = readEnvironmentVariable('BIGFORGE_AZURE_SESSION_SECRET', '')
+param bootstrapAdminEmail = readEnvironmentVariable('BIGFORGE_AZURE_ADMIN_EMAIL', '')
+param bootstrapAdminPassword = readEnvironmentVariable('BIGFORGE_AZURE_ADMIN_PASSWORD', '')
 param otlpEndpoint = ''
 
-// Monitoring
+// Monitoring. Statsbeat (SDK-usage telemetry that Azure Monitor's packages send to Microsoft) is
+// opted out by default; set enableStatsbeat to true to opt in.
 param logRetentionDays = 30
 param logDailyQuotaGb = 1
+param enableStatsbeat = false
 
 // Key Vault. Set purge protection to true for anything you intend to keep; it is irreversible.
 param keyVaultPurgeProtection = false

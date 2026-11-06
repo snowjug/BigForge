@@ -1,5 +1,5 @@
 metadata name = 'BigForge Key Vault'
-metadata description = 'RBAC-authorized Key Vault (no access policies) with soft delete, optional purge protection, an optional session secret, audit logging, and secret-read access for the workload identity.'
+metadata description = 'RBAC-authorized Key Vault (no access policies) with soft delete, optional purge protection, optional session and bootstrap-admin-password secrets, audit logging, and secret-read access for the workload identity.'
 
 @description('Name of the Key Vault (3-24 characters, globally unique).')
 @minLength(3)
@@ -26,6 +26,13 @@ param sessionSecretName string
 @description('Value of the session secret. When empty, no secret is written and a secret with the name above must already exist before the Container App is deployed.')
 @secure()
 param sessionSecretValue string = ''
+
+@description('Name of the secret that holds the bootstrap admin password (production mode).')
+param bootstrapAdminPasswordSecretName string
+
+@description('Value of the bootstrap admin password, supplied by the operator and never generated here. When empty, no secret is written.')
+@secure()
+param bootstrapAdminPasswordValue string = ''
 
 @description('Resource ID of the Log Analytics workspace that receives Key Vault audit logs.')
 param logAnalyticsWorkspaceId string
@@ -67,6 +74,18 @@ resource sessionSecret 'Microsoft.KeyVault/vaults/secrets@2025-05-01' = if (!emp
   name: sessionSecretName
   properties: {
     value: sessionSecretValue
+    contentType: 'text/plain'
+    attributes: {
+      enabled: true
+    }
+  }
+}
+
+resource bootstrapAdminPassword 'Microsoft.KeyVault/vaults/secrets@2025-05-01' = if (!empty(bootstrapAdminPasswordValue)) {
+  parent: vault
+  name: bootstrapAdminPasswordSecretName
+  properties: {
+    value: bootstrapAdminPasswordValue
     contentType: 'text/plain'
     attributes: {
       enabled: true

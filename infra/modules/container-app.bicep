@@ -40,6 +40,16 @@ param appInsightsName string
 ])
 param appMode string = 'demo'
 
+@description('Value of BIGFORGE_PROVIDER_MODE. "live" makes the app call the configured live provider (for example Azure OpenAI, billed per token); the app falls back to the deterministic provider when no live provider is configured.')
+@allowed([
+  'deterministic'
+  'live'
+])
+param providerMode string = 'deterministic'
+
+@description('CIDR ranges allowed to reach the public endpoint, for example 203.0.113.7/32. Empty leaves the endpoint open to the internet; with any entry, all other addresses are denied.')
+param allowedIpRanges string[] = []
+
 @description('Minimum replicas. 0 lets the app scale to zero when idle; the ephemeral SQLite database is lost whenever the replica is removed.')
 @allowed([
   0
@@ -58,6 +68,15 @@ param azureOpenAiDeployment string = ''
 
 @description('Azure OpenAI data-plane API version (AZURE_OPENAI_API_VERSION). Only used when an endpoint is set.')
 param azureOpenAiApiVersion string = '2024-10-21'
+
+@description('E-mail of the first admin (BIGFORGE_BOOTSTRAP_ADMIN_EMAIL). Only used when appMode is "production" and bootstrapAdminPasswordSecretName is also set.')
+param bootstrapAdminEmail string = ''
+
+@description('Name of the Key Vault secret that holds the first admin password (BIGFORGE_BOOTSTRAP_ADMIN_PASSWORD). The secret must already exist in the vault. Empty leaves the bootstrap admin unconfigured; it is ignored unless appMode is "production".')
+param bootstrapAdminPasswordSecretName string = ''
+
+@description('Opt in to Azure Monitor "Statsbeat" SDK-usage telemetry, which the exporter packages send to Microsoft. Off by default.')
+param enableStatsbeat bool = false
 
 @description('Resource tags.')
 param tags object = {}
@@ -89,6 +108,10 @@ var coreEnv = [
     value: appMode
   }
   {
+    name: 'BIGFORGE_PROVIDER_MODE'
+    value: providerMode
+  }
+  {
     name: 'BIGFORGE_DATA_DIR'
     value: dataDir
   }
@@ -110,6 +133,56 @@ var otlpEnv = empty(otlpEndpoint)
         value: otlpEndpoint
       }
     ]
+
+// Azure Monitor's OpenTelemetry packages send Statsbeat (SDK usage) telemetry to Microsoft unless it is
+// disabled, so the app is opted out by default and enableStatsbeat opts in. The variable name differs by
+// package version: 1.21.0 (exporter 1.0.0-beta.47) reads the last two, not the first. Harmless when no
+// exporter is installed.
+var statsbeatOptOutEnv = enableStatsbeat
+  ? []
+  : [
+      {
+        name: 'APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL'
+        value: 'true'
+      }
+      {
+        name: 'APPLICATIONINSIGHTS_STATSBEAT_DISABLED'
+        value: 'true'
+      }
+      {
+        name: 'APPLICATION_INSIGHTS_NO_STATSBEAT'
+        value: 'true'
+      }
+    ]
+
+// Production mode only. The platform seeds one admin from these variables when both are set, the
+// password has at least 12 characters and the database has no tenants, which is every cold start
+// of this ephemeral replica. The password is read from Key Vault with the same identity and
+// mechanism as the session secret.
+var bootstrapAdminEnabled = appMode == 'production' && !empty(bootstrapAdminEmail) && !empty(bootstrapAdminPasswordSecretName)
+
+var bootstrapAdminSecrets = bootstrapAdminEnabled
+  ? [
+      {
+        name: 'bootstrap-admin-password'
+        keyVaultUrl: '${keyVaultUri}secrets/${bootstrapAdminPasswordSecretName}'
+        identity: identityId
+      }
+    ]
+  : []
+
+var bootstrapAdminEnv = bootstrapAdminEnabled
+  ? [
+      {
+        name: 'BIGFORGE_BOOTSTRAP_ADMIN_EMAIL'
+        value: bootstrapAdminEmail
+      }
+      {
+        name: 'BIGFORGE_BOOTSTRAP_ADMIN_PASSWORD'
+        secretRef: 'bootstrap-admin-password'
+      }
+    ]
+  : []
 
 var azureOpenAiEnv = empty(azureOpenAiEndpoint)
   ? []
@@ -160,6 +233,13 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
         targetPort: targetPort
         transport: 'http'
         allowInsecure: false
+        ipSecurityRestrictions: [
+          for (range, index) in allowedIpRanges: {
+            name: 'allow-${index}'
+            ipAddressRange: range
+            action: 'Allow'
+          }
+        ]
       }
       registries: [
         {
@@ -167,17 +247,20 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
       ]
-      secrets: [
-        {
-          name: 'session-secret'
-          keyVaultUrl: '${keyVaultUri}secrets/${sessionSecretName}'
-          identity: identityId
-        }
-        {
-          name: 'appinsights-connection-string'
-          value: appInsights.properties.ConnectionString
-        }
-      ]
+      secrets: concat(
+        [
+          {
+            name: 'session-secret'
+            keyVaultUrl: '${keyVaultUri}secrets/${sessionSecretName}'
+            identity: identityId
+          }
+          {
+            name: 'appinsights-connection-string'
+            value: appInsights.properties.ConnectionString
+          }
+        ],
+        bootstrapAdminSecrets
+      )
     }
     template: {
       containers: [
@@ -188,7 +271,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
             cpu: json('0.5')
             memory: '1Gi'
           }
-          env: concat(coreEnv, otlpEnv, azureOpenAiEnv)
+          env: concat(coreEnv, statsbeatOptOutEnv, otlpEnv, azureOpenAiEnv, bootstrapAdminEnv)
           probes: [
             {
               type: 'Liveness'

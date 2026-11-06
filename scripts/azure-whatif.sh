@@ -17,6 +17,11 @@
 # The template parameters come from infra/main.bicepparam, which reads optional BIGFORGE_AZURE_*
 # environment variables (see that file). Set BIGFORGE_AZURE_IMAGE to include the Container App in
 # the preview; without it the preview covers the foundation only.
+#
+# Production mode (BIGFORGE_AZURE_APP_MODE=production) seeds no demo users, so the script first
+# requires BOTH BIGFORGE_AZURE_ADMIN_EMAIL and BIGFORGE_AZURE_ADMIN_PASSWORD (12+ characters) in
+# the environment and stops before calling az if they are missing or invalid. They are never
+# generated and never printed.
 
 set -euo pipefail
 
@@ -36,6 +41,22 @@ random_secret() {
   fi
 }
 
+# Production mode seeds no demo users, so the operator must supply the first admin. It is never
+# generated (a password nobody saw would leave nobody able to sign in) and never printed.
+require_production_admin() {
+  [[ "${BIGFORGE_AZURE_APP_MODE:-demo}" == "production" ]] || return 0
+  if [[ -z "${BIGFORGE_AZURE_ADMIN_EMAIL:-}" || -z "${BIGFORGE_AZURE_ADMIN_PASSWORD:-}" ]]; then
+    die "BIGFORGE_AZURE_APP_MODE=production needs BOTH BIGFORGE_AZURE_ADMIN_EMAIL and BIGFORGE_AZURE_ADMIN_PASSWORD (the first admin; without it nobody can sign in). Export them in your environment; they are never generated or printed."
+  fi
+  local email_pattern="^[A-Za-z0-9._%+'-]+@([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"
+  if [[ ! "${BIGFORGE_AZURE_ADMIN_EMAIL}" =~ ${email_pattern} || ${#BIGFORGE_AZURE_ADMIN_EMAIL} -gt 200 ]]; then
+    die "BIGFORGE_AZURE_ADMIN_EMAIL must be a full e-mail address of at most 200 characters; the sign-in form rejects anything else."
+  fi
+  if [[ ${#BIGFORGE_AZURE_ADMIN_PASSWORD} -lt 12 ]]; then
+    die "BIGFORGE_AZURE_ADMIN_PASSWORD must be at least 12 characters; the app ignores a shorter one and nobody could sign in."
+  fi
+}
+
 cat <<'BANNER'
 ==============================================================================
  BigForge Azure what-if  --  READ-ONLY
@@ -44,6 +65,8 @@ cat <<'BANNER'
  (scripts/azure-deploy.sh) and is NOT performed here.
 ==============================================================================
 BANNER
+
+require_production_admin
 
 command -v az >/dev/null 2>&1 || die "Azure CLI (az) not found."
 
@@ -85,16 +108,24 @@ if [[ -z "${BIGFORGE_AZURE_SESSION_SECRET:-}" && -z "${BIGFORGE_AZURE_IMAGE:-}" 
   export BIGFORGE_AZURE_SESSION_SECRET
 fi
 
+admin_note="not used (demo mode seeds its own demo users)"
+if [[ "${BIGFORGE_AZURE_APP_MODE:-demo}" == "production" ]]; then
+  admin_note="e-mail and password supplied by you (not printed)"
+fi
+
 cat <<SUMMARY
 
 Previewing (read-only) against:
-  subscription:   ${subscription_name}
-  location:       ${location}
-  environment:    ${BIGFORGE_AZURE_ENVIRONMENT:-dev}
-  app mode:       ${BIGFORGE_AZURE_APP_MODE:-demo}
-  image:          ${BIGFORGE_AZURE_IMAGE:-<none: foundation only, no Container App>}
-  azure openai:   ${BIGFORGE_AZURE_OPENAI:-false}
-  budget amount:  ${BIGFORGE_AZURE_BUDGET_AMOUNT:-0} (0 means no budget)
+  subscription:    ${subscription_name}
+  location:        ${location}
+  environment:     ${BIGFORGE_AZURE_ENVIRONMENT:-dev}
+  app mode:        ${BIGFORGE_AZURE_APP_MODE:-demo}
+  bootstrap admin: ${admin_note}
+  provider mode:   ${BIGFORGE_AZURE_PROVIDER_MODE:-deterministic}
+  allowed IPs:     ${BIGFORGE_AZURE_ALLOWED_IPS:-<none: open to the internet>}
+  image:           ${BIGFORGE_AZURE_IMAGE:-<none: foundation only, no Container App>}
+  azure openai:    ${BIGFORGE_AZURE_OPENAI:-false}
+  budget amount:   ${BIGFORGE_AZURE_BUDGET_AMOUNT:-0} (0 means no budget)
 
 SUMMARY
 whatif_name="bigforge-whatif-$(date -u +%Y%m%d%H%M%S)"

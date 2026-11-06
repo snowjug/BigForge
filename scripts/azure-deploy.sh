@@ -5,10 +5,14 @@
 #   1. BIGFORGE_CONFIRM_CHARGEABLE_DEPLOYMENT=yes is set in the environment.
 #   2. AZURE_SUBSCRIPTION_ID and LOCATION are set explicitly (no defaults, no inference).
 #   3. stdin is an interactive terminal (so the prompts cannot be piped or scripted away).
-#   4. The templates build and lint cleanly (local checks).
-#   5. You type 'what-if reviewed', attesting that you reviewed scripts/azure-whatif.sh output
+#   4. In production mode (BIGFORGE_AZURE_APP_MODE=production), BIGFORGE_AZURE_ADMIN_EMAIL and
+#      BIGFORGE_AZURE_ADMIN_PASSWORD (12+ characters) are set by you. They are never generated and
+#      never printed. Production mode seeds no demo users, so without them nobody can sign in.
+#      Checked before any az command runs; demo mode ignores both variables.
+#   5. The templates build and lint cleanly (local checks).
+#   6. You type 'what-if reviewed', attesting that you reviewed scripts/azure-whatif.sh output
 #      for exactly these settings.
-#   6. `az deployment sub create --confirm-with-what-if` shows the what-if for this deployment
+#   7. `az deployment sub create --confirm-with-what-if` shows the what-if for this deployment
 #      and asks you to confirm once more.
 #
 # Do not run this without explicit authorization to create resources in the target subscription.
@@ -16,12 +20,14 @@
 #
 # Usage (two phases, because the container registry is created by the same template):
 #   1. Foundation (no image): creates everything except the Container App, and writes a freshly
-#      generated session secret to Key Vault.
+#      generated session secret (and, in production mode, your admin password) to Key Vault.
 #        BIGFORGE_CONFIRM_CHARGEABLE_DEPLOYMENT=yes AZURE_SUBSCRIPTION_ID=<id> LOCATION=<region> \
 #          scripts/azure-deploy.sh
 #   2. Push an image to the new registry (commands are printed at the end of phase 1), then
 #      deploy again with BIGFORGE_AZURE_IMAGE=<registry>.azurecr.io/bigforge:<tag> to create the
-#      Container App. The session secret from phase 1 is reused (it is not rewritten).
+#      Container App. The session secret from phase 1 is reused (it is not rewritten). In
+#      production mode keep the admin variables set for this run too: the Container App is only
+#      wired to the admin when both are provided.
 #
 # Template parameters come from infra/main.bicepparam (optional BIGFORGE_AZURE_* variables).
 
@@ -40,6 +46,22 @@ random_secret() {
     openssl rand -base64 48
   else
     head -c 48 /dev/urandom | base64 | tr -d '\n'
+  fi
+}
+
+# Production mode seeds no demo users, so the operator must supply the first admin. It is never
+# generated (a password nobody saw would leave nobody able to sign in) and never printed.
+require_production_admin() {
+  [[ "${BIGFORGE_AZURE_APP_MODE:-demo}" == "production" ]] || return 0
+  if [[ -z "${BIGFORGE_AZURE_ADMIN_EMAIL:-}" || -z "${BIGFORGE_AZURE_ADMIN_PASSWORD:-}" ]]; then
+    die "BIGFORGE_AZURE_APP_MODE=production needs BOTH BIGFORGE_AZURE_ADMIN_EMAIL and BIGFORGE_AZURE_ADMIN_PASSWORD (the first admin; without it nobody can sign in). Export them in your environment; they are never generated or printed."
+  fi
+  local email_pattern="^[A-Za-z0-9._%+'-]+@([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"
+  if [[ ! "${BIGFORGE_AZURE_ADMIN_EMAIL}" =~ ${email_pattern} || ${#BIGFORGE_AZURE_ADMIN_EMAIL} -gt 200 ]]; then
+    die "BIGFORGE_AZURE_ADMIN_EMAIL must be a full e-mail address of at most 200 characters; the sign-in form rejects anything else."
+  fi
+  if [[ ${#BIGFORGE_AZURE_ADMIN_PASSWORD} -lt 12 ]]; then
+    die "BIGFORGE_AZURE_ADMIN_PASSWORD must be at least 12 characters; the app ignores a shorter one and nobody could sign in."
   fi
 }
 
@@ -63,9 +85,12 @@ location="${LOCATION:-}"
 # Gate 3: interactive terminal.
 [[ -t 0 ]] || die "stdin is not a terminal; this script only runs interactively."
 
+# Gate 4: production mode needs the operator's own admin credentials (before any az command).
+require_production_admin
+
 command -v az >/dev/null 2>&1 || die "Azure CLI (az) not found."
 
-# Gate 4: local validation (does not contact Azure).
+# Gate 5: local validation (does not contact Azure).
 echo "Validating templates locally..."
 az bicep build --file infra/main.bicep --stdout >/dev/null
 az bicep lint --file infra/main.bicep
@@ -90,27 +115,35 @@ elif [[ -z "${BIGFORGE_AZURE_IMAGE:-}" ]]; then
   secret_note="generated for this run; written to Key Vault (not printed)"
 fi
 
+admin_note="not used (demo mode seeds its own demo users)"
+if [[ "${BIGFORGE_AZURE_APP_MODE:-demo}" == "production" ]]; then
+  admin_note="e-mail and password supplied by you (not printed); password written to Key Vault"
+fi
+
 cat <<SUMMARY
 
 About to create BILLABLE Azure resources:
-  subscription:   ${subscription_name}
-  location:       ${location}
-  environment:    ${BIGFORGE_AZURE_ENVIRONMENT:-dev}
-  app mode:       ${BIGFORGE_AZURE_APP_MODE:-demo}
-  image:          ${BIGFORGE_AZURE_IMAGE:-<none: phase 1, foundation only>}
-  azure openai:   ${BIGFORGE_AZURE_OPENAI:-false}
-  budget amount:  ${BIGFORGE_AZURE_BUDGET_AMOUNT:-0} (0 means no budget)
-  session secret: ${secret_note}
+  subscription:    ${subscription_name}
+  location:        ${location}
+  environment:     ${BIGFORGE_AZURE_ENVIRONMENT:-dev}
+  app mode:        ${BIGFORGE_AZURE_APP_MODE:-demo}
+  bootstrap admin: ${admin_note}
+  provider mode:   ${BIGFORGE_AZURE_PROVIDER_MODE:-deterministic}
+  allowed IPs:     ${BIGFORGE_AZURE_ALLOWED_IPS:-<none: open to the internet>}
+  image:           ${BIGFORGE_AZURE_IMAGE:-<none: phase 1, foundation only>}
+  azure openai:    ${BIGFORGE_AZURE_OPENAI:-false}
+  budget amount:   ${BIGFORGE_AZURE_BUDGET_AMOUNT:-0} (0 means no budget)
+  session secret:  ${secret_note}
 
 SUMMARY
 
-# Gate 5: attestation.
+# Gate 6: attestation.
 read -r -p "Have you reviewed scripts/azure-whatif.sh output for exactly these settings? Type 'what-if reviewed' to continue: " answer
 [[ "${answer}" == "what-if reviewed" ]] || die "Not confirmed. Nothing was deployed."
 
 deployment_name="bigforge-deploy-$(date -u +%Y%m%d%H%M%S)"
 
-# Gate 6: the CLI prints the what-if for this exact deployment and asks to confirm.
+# Gate 7: the CLI prints the what-if for this exact deployment and asks to confirm.
 az deployment sub create \
   --subscription "${subscription}" \
   --location "${location}" \
@@ -128,10 +161,15 @@ if [[ -z "${BIGFORGE_AZURE_IMAGE:-}" ]]; then
   cat <<NEXT
 
 Phase 1 finished: the Container App does not exist yet because the registry is empty.
-To create it, push an image and deploy again (replace <tag>):
+To create it, push an image and deploy again (replace <tag>). The default image has no telemetry
+exporter; the build argument below adds the Azure Monitor exporter (also add @azure/identity@^4
+when Azure OpenAI is used with Entra ID authentication). In production mode keep
+BIGFORGE_AZURE_ADMIN_EMAIL and BIGFORGE_AZURE_ADMIN_PASSWORD exported for the second run as well.
+See docs/AZURE.md.
 
   az acr login --name ${registry_name}
-  docker build --tag ${login_server}/bigforge:<tag> .
+  docker build --build-arg "EXTRA_RUNTIME_PACKAGES=@azure/monitor-opentelemetry@^1" \\
+    --tag ${login_server}/bigforge:<tag> .
   docker push ${login_server}/bigforge:<tag>
   BIGFORGE_CONFIRM_CHARGEABLE_DEPLOYMENT=yes AZURE_SUBSCRIPTION_ID=<subscription-id> LOCATION=${location} \\
     BIGFORGE_AZURE_IMAGE=${login_server}/bigforge:<tag> scripts/azure-deploy.sh

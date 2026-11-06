@@ -1,0 +1,395 @@
+# MANUAL, CHARGEABLE deployment of BigForge to Azure Container Apps.
+#
+# STATUS: this workflow has NEVER been run unless docs/VALIDATION_LEDGER.md records a run.
+# Authoring it and validating the YAML locally deployed nothing.
+#
+# How it is guarded
+#   * workflow_dispatch only. It is never triggered by a push or a pull request.
+#   * The `confirm` input must be exactly "deploy", and the run must be on the default branch.
+#   * The `whatif` and `deploy` jobs are bound to the GitHub Environment `azure-production`.
+#     Configure that environment with required reviewers and restrict it to the main branch, so a
+#     human approves the read-only what-if first and then the deployment after reading it.
+#   * Azure access uses GitHub OIDC; no Azure credential is stored in GitHub. These are repository
+#     (or azure-production environment) VARIABLES, not secrets:
+#       AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#     Optional variable: AZURE_BUDGET_CONTACT_EMAIL (alert recipient when budget_amount > 0).
+#   * Production mode (app_mode = production) seeds no demo users, so it also needs the first admin:
+#     the VARIABLE AZURE_ADMIN_EMAIL and the azure-production ENVIRONMENT SECRET
+#     AZURE_ADMIN_PASSWORD (12 or more characters). You choose and keep that password; the
+#     workflow never generates, prints or logs it, and stops before any Azure login when either
+#     value is missing or invalid. Demo mode ignores both.
+#   * The image is built and pushed to the registry only inside the approved `deploy` job.
+#
+# Two-phase deployment: the registry is created by infra/, so the Container App can only be
+# created after an image has been pushed. The `deploy` job therefore deploys the foundation,
+# pushes the image, deploys again with the image, and finishes with a smoke test.
+
+name: Deploy to Azure (manual, chargeable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: Environment label used in Azure resource names
+        type: choice
+        options: [dev, test, prod]
+        default: dev
+      location:
+        description: Azure region for the deployment, for example eastus2
+        type: string
+        default: eastus2
+      app_mode:
+        description: Value of BIGFORGE_MODE; production also needs variable AZURE_ADMIN_EMAIL and environment secret AZURE_ADMIN_PASSWORD
+        type: choice
+        options: [demo, production]
+        default: demo
+      provider_mode:
+        description: Value of BIGFORGE_PROVIDER_MODE; live needs deploy_azure_openai and is billed per token
+        type: choice
+        options: [deterministic, live]
+        default: deterministic
+      deploy_azure_openai:
+        description: Also create an Azure OpenAI account and model deployment (billed per token)
+        type: boolean
+        default: false
+      budget_amount:
+        description: Monthly budget in the billing currency; 0 creates no budget
+        type: string
+        default: '0'
+      confirm:
+        description: Type the word deploy to confirm that this creates billable Azure resources
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-azure-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Same Bicep CLI version as the local validation recorded in docs/AZURE.md.
+  BICEP_VERSION: v0.48.1
+  AZURE_CORE_NO_COLOR: 'true'
+
+jobs:
+  guard:
+    name: Check confirmation and inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate inputs
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          LOCATION: ${{ inputs.location }}
+          BUDGET_AMOUNT: ${{ inputs.budget_amount }}
+          RUN_REF: ${{ github.ref }}
+          DEFAULT_REF: refs/heads/${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "${CONFIRM}" != "deploy" ]]; then
+            echo "::error::The confirm input must be exactly 'deploy'. Nothing was deployed."
+            exit 1
+          fi
+          if [[ "${RUN_REF}" != "${DEFAULT_REF}" ]]; then
+            echo "::error::Run this workflow from the default branch (${DEFAULT_REF}), not ${RUN_REF}."
+            exit 1
+          fi
+          if [[ ! "${LOCATION}" =~ ^[a-z0-9]+$ ]]; then
+            echo "::error::location must be a lowercase Azure region name such as eastus2."
+            exit 1
+          fi
+          if [[ ! "${BUDGET_AMOUNT}" =~ ^[0-9]+$ ]]; then
+            echo "::error::budget_amount must be a whole number (0 means no budget)."
+            exit 1
+          fi
+
+  whatif:
+    name: What-if (read-only preview)
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: azure-production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      LOCATION: ${{ inputs.location }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      BIGFORGE_AZURE_ENVIRONMENT: ${{ inputs.environment_name }}
+      BIGFORGE_AZURE_APP_MODE: ${{ inputs.app_mode }}
+      BIGFORGE_AZURE_PROVIDER_MODE: ${{ inputs.provider_mode }}
+      BIGFORGE_AZURE_OPENAI: ${{ inputs.deploy_azure_openai }}
+      BIGFORGE_AZURE_BUDGET_AMOUNT: ${{ inputs.budget_amount }}
+      BIGFORGE_AZURE_BUDGET_EMAIL: ${{ vars.AZURE_BUDGET_CONTACT_EMAIL }}
+    steps:
+      - name: Check required variables and secrets
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          BIGFORGE_AZURE_ADMIN_EMAIL: ${{ inputs.app_mode == 'production' && vars.AZURE_ADMIN_EMAIL || '' }}
+          BIGFORGE_AZURE_ADMIN_PASSWORD: ${{ inputs.app_mode == 'production' && secrets.AZURE_ADMIN_PASSWORD || '' }}
+        run: |
+          missing=0
+          [[ -n "${AZURE_CLIENT_ID}" ]] || { echo "::error::Variable AZURE_CLIENT_ID is not set"; missing=1; }
+          [[ -n "${AZURE_TENANT_ID}" ]] || { echo "::error::Variable AZURE_TENANT_ID is not set"; missing=1; }
+          [[ -n "${AZURE_SUBSCRIPTION_ID}" ]] || { echo "::error::Variable AZURE_SUBSCRIPTION_ID is not set"; missing=1; }
+          if [[ "${BIGFORGE_AZURE_BUDGET_AMOUNT}" != "0" && -z "${BIGFORGE_AZURE_BUDGET_EMAIL}" ]]; then
+            echo "::error::budget_amount is set but variable AZURE_BUDGET_CONTACT_EMAIL is empty"
+            missing=1
+          fi
+          # Production mode seeds no demo users: the operator must supply the first admin. The
+          # values are never generated, echoed or logged; only their names appear in messages.
+          if [[ "${BIGFORGE_AZURE_APP_MODE}" == "production" ]]; then
+            email_pattern="^[A-Za-z0-9._%+'-]+@([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"
+            if [[ -z "${BIGFORGE_AZURE_ADMIN_EMAIL}" ]]; then
+              echo "::error::Production mode needs the variable AZURE_ADMIN_EMAIL (the first admin e-mail address)"
+              missing=1
+            elif [[ ! "${BIGFORGE_AZURE_ADMIN_EMAIL}" =~ ${email_pattern} || ${#BIGFORGE_AZURE_ADMIN_EMAIL} -gt 200 ]]; then
+              echo "::error::The variable AZURE_ADMIN_EMAIL must be a full e-mail address of at most 200 characters"
+              missing=1
+            fi
+            if [[ -z "${BIGFORGE_AZURE_ADMIN_PASSWORD}" ]]; then
+              echo "::error::Production mode needs the azure-production environment secret AZURE_ADMIN_PASSWORD (the first admin password; this workflow never generates one)"
+              missing=1
+            elif [[ ${#BIGFORGE_AZURE_ADMIN_PASSWORD} -lt 12 ]]; then
+              echo "::error::The secret AZURE_ADMIN_PASSWORD must be at least 12 characters"
+              missing=1
+            fi
+          fi
+          exit "${missing}"
+
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install pinned Bicep CLI
+        run: |
+          az config set bicep.use_binary_from_path=false
+          az bicep install --version "${BICEP_VERSION}"
+          az bicep version
+
+      - name: What-if (makes no changes)
+        env:
+          BIGFORGE_AZURE_ADMIN_EMAIL: ${{ inputs.app_mode == 'production' && vars.AZURE_ADMIN_EMAIL || '' }}
+          BIGFORGE_AZURE_ADMIN_PASSWORD: ${{ inputs.app_mode == 'production' && secrets.AZURE_ADMIN_PASSWORD || '' }}
+        run: |
+          # Preview the end state: foundation plus Container App. The placeholder image only
+          # selects the Container App path; the real image does not exist yet.
+          session_secret="$(openssl rand -base64 48)"
+          echo "::add-mask::${session_secret}"
+          export BIGFORGE_AZURE_SESSION_SECRET="${session_secret}"
+          export BIGFORGE_AZURE_IMAGE="what-if.invalid/bigforge:${GITHUB_SHA}"
+          az deployment sub what-if \
+            --subscription "${AZURE_SUBSCRIPTION_ID}" \
+            --location "${LOCATION}" \
+            --name "bigforge-whatif-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --parameters infra/main.bicepparam \
+            --no-prompt true 2>&1 | tee whatif.txt
+
+      - name: Publish what-if to the job summary
+        if: always()
+        run: |
+          [[ -f whatif.txt ]] || exit 0
+          {
+            echo '## What-if result (read-only; nothing was deployed by this job)'
+            echo
+            echo '```text'
+            sed -E 's/\x1b\[[0-9;]*m//g' whatif.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  deploy:
+    name: Deploy, push image, smoke test
+    needs: [guard, whatif]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: azure-production
+      url: ${{ steps.app.outputs.app_url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      LOCATION: ${{ inputs.location }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      BIGFORGE_AZURE_ENVIRONMENT: ${{ inputs.environment_name }}
+      BIGFORGE_AZURE_APP_MODE: ${{ inputs.app_mode }}
+      BIGFORGE_AZURE_PROVIDER_MODE: ${{ inputs.provider_mode }}
+      BIGFORGE_AZURE_OPENAI: ${{ inputs.deploy_azure_openai }}
+      BIGFORGE_AZURE_BUDGET_AMOUNT: ${{ inputs.budget_amount }}
+      BIGFORGE_AZURE_BUDGET_EMAIL: ${{ vars.AZURE_BUDGET_CONTACT_EMAIL }}
+    steps:
+      - name: Check production bootstrap admin
+        env:
+          BIGFORGE_AZURE_ADMIN_EMAIL: ${{ inputs.app_mode == 'production' && vars.AZURE_ADMIN_EMAIL || '' }}
+          BIGFORGE_AZURE_ADMIN_PASSWORD: ${{ inputs.app_mode == 'production' && secrets.AZURE_ADMIN_PASSWORD || '' }}
+        run: |
+          # Same rules as in the what-if job, repeated because this job is the one that deploys.
+          # Runs before any Azure login. The values are never generated, echoed or logged.
+          missing=0
+          if [[ "${BIGFORGE_AZURE_APP_MODE}" == "production" ]]; then
+            email_pattern="^[A-Za-z0-9._%+'-]+@([A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$"
+            if [[ -z "${BIGFORGE_AZURE_ADMIN_EMAIL}" ]]; then
+              echo "::error::Production mode needs the variable AZURE_ADMIN_EMAIL (the first admin e-mail address)"
+              missing=1
+            elif [[ ! "${BIGFORGE_AZURE_ADMIN_EMAIL}" =~ ${email_pattern} || ${#BIGFORGE_AZURE_ADMIN_EMAIL} -gt 200 ]]; then
+              echo "::error::The variable AZURE_ADMIN_EMAIL must be a full e-mail address of at most 200 characters"
+              missing=1
+            fi
+            if [[ -z "${BIGFORGE_AZURE_ADMIN_PASSWORD}" ]]; then
+              echo "::error::Production mode needs the azure-production environment secret AZURE_ADMIN_PASSWORD (the first admin password; this workflow never generates one)"
+              missing=1
+            elif [[ ${#BIGFORGE_AZURE_ADMIN_PASSWORD} -lt 12 ]]; then
+              echo "::error::The secret AZURE_ADMIN_PASSWORD must be at least 12 characters"
+              missing=1
+            fi
+          fi
+          exit "${missing}"
+
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install pinned Bicep CLI
+        run: |
+          az config set bicep.use_binary_from_path=false
+          az bicep install --version "${BICEP_VERSION}"
+          az bicep version
+
+      - name: Deploy foundation (phase 1, no Container App yet)
+        id: foundation
+        env:
+          BIGFORGE_AZURE_ADMIN_EMAIL: ${{ inputs.app_mode == 'production' && vars.AZURE_ADMIN_EMAIL || '' }}
+          BIGFORGE_AZURE_ADMIN_PASSWORD: ${{ inputs.app_mode == 'production' && secrets.AZURE_ADMIN_PASSWORD || '' }}
+        run: |
+          # A fresh random session secret is written to Key Vault. It is masked and never printed.
+          # In production mode the operator's admin password (from the environment secret) is
+          # written to Key Vault too; it is never generated here.
+          session_secret="$(openssl rand -base64 48)"
+          echo "::add-mask::${session_secret}"
+          export BIGFORGE_AZURE_SESSION_SECRET="${session_secret}"
+          az deployment sub create \
+            --subscription "${AZURE_SUBSCRIPTION_ID}" \
+            --location "${LOCATION}" \
+            --name "bigforge-foundation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --parameters infra/main.bicepparam \
+            --no-prompt true \
+            --query properties.outputs \
+            --output json > foundation-outputs.json
+          {
+            echo "registry_name=$(jq -r '.containerRegistryName.value' foundation-outputs.json)"
+            echo "login_server=$(jq -r '.containerRegistryLoginServer.value' foundation-outputs.json)"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push the image (not run anywhere else)
+        id: image
+        env:
+          REGISTRY_NAME: ${{ steps.foundation.outputs.registry_name }}
+          LOGIN_SERVER: ${{ steps.foundation.outputs.login_server }}
+        run: |
+          image="${LOGIN_SERVER}/bigforge:${GITHUB_SHA}"
+          # The app loads exporter packages only if they are installed, and the default image has
+          # none. The template always sets APPLICATIONINSIGHTS_CONNECTION_STRING, so add the Azure
+          # Monitor exporter; add @azure/identity when Azure OpenAI is used with Entra ID auth.
+          extra_packages="@azure/monitor-opentelemetry@^1"
+          if [[ "${BIGFORGE_AZURE_OPENAI}" == "true" ]]; then
+            extra_packages="${extra_packages} @azure/identity@^4"
+          fi
+          az acr login --name "${REGISTRY_NAME}"
+          docker build --build-arg "EXTRA_RUNTIME_PACKAGES=${extra_packages}" --tag "${image}" .
+          docker push "${image}"
+          echo "image=${image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy the Container App (phase 2)
+        id: app
+        env:
+          BIGFORGE_AZURE_IMAGE: ${{ steps.image.outputs.image }}
+          BIGFORGE_AZURE_ADMIN_EMAIL: ${{ inputs.app_mode == 'production' && vars.AZURE_ADMIN_EMAIL || '' }}
+          BIGFORGE_AZURE_ADMIN_PASSWORD: ${{ inputs.app_mode == 'production' && secrets.AZURE_ADMIN_PASSWORD || '' }}
+        run: |
+          # The session secret is not passed again: the Key Vault secret from phase 1 is reused.
+          # The admin values are passed again because the Container App is only wired to the
+          # bootstrap admin when both are provided.
+          az deployment sub create \
+            --subscription "${AZURE_SUBSCRIPTION_ID}" \
+            --location "${LOCATION}" \
+            --name "bigforge-app-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --parameters infra/main.bicepparam \
+            --no-prompt true \
+            --query properties.outputs \
+            --output json > app-outputs.json
+          {
+            echo "fqdn=$(jq -r '.containerAppFqdn.value' app-outputs.json)"
+            echo "app_url=$(jq -r '.appUrl.value' app-outputs.json)"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Smoke test (record this result in docs/VALIDATION_LEDGER.md)
+        env:
+          FQDN: ${{ steps.app.outputs.fqdn }}
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set +e
+          if [[ -z "${FQDN}" ]]; then
+            echo "::error::The deployment returned no Container App FQDN"
+            exit 1
+          fi
+          {
+            echo '## Smoke test'
+            echo
+            echo "- Target: https://${FQDN}"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- Image: ${IMAGE}"
+            echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo '| Endpoint | HTTP status | Attempts | Checked (UTC) |'
+            echo '| --- | --- | --- | --- |'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          overall=0
+          for path in /api/health /api/ready; do
+            code="000"
+            attempts=0
+            for attempt in $(seq 1 30); do
+              attempts="${attempt}"
+              rm -f body.txt
+              code="$(curl --silent --output body.txt --write-out '%{http_code}' \
+                --connect-timeout 10 --max-time 30 "https://${FQDN}${path}")"
+              if [[ "${code}" == "200" ]]; then
+                break
+              fi
+              if [[ "${attempt}" -lt 30 ]]; then
+                echo "${path}: HTTP ${code} (attempt ${attempt}/30); waiting 10 seconds (a cold start from zero replicas can take a while)"
+                sleep 10
+              fi
+            done
+            echo "${path}: HTTP ${code} after ${attempts} attempt(s)"
+            if [[ -f body.txt ]]; then
+              cat body.txt
+              echo
+            fi
+            echo "| \`${path}\` | ${code} | ${attempts} | $(date -u +%Y-%m-%dT%H:%M:%SZ) |" >> "${GITHUB_STEP_SUMMARY}"
+            if [[ "${code}" != "200" ]]; then
+              overall=1
+            fi
+          done
+          exit "${overall}"

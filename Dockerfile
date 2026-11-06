@@ -31,8 +31,12 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 FROM node:24-slim AS runtime
 
-# Optional extra runtime packages, for example "@azure/identity" when AZURE_OPENAI_AUTH=entra
-# is used and dist/server/package.json does not already list it. Empty by default.
+# Optional extra runtime packages (space separated). The bundle loads these only when present,
+# and the default image contains none of them:
+#   @azure/identity               needed when AZURE_OPENAI_AUTH=entra
+#   @azure/monitor-opentelemetry  exports telemetry when APPLICATIONINSIGHTS_CONNECTION_STRING is set
+#   @opentelemetry/sdk-node       exports telemetry when OTEL_EXPORTER_OTLP_ENDPOINT is set
+# Example: docker build --build-arg EXTRA_RUNTIME_PACKAGES="@azure/monitor-opentelemetry@^1" .
 ARG EXTRA_RUNTIME_PACKAGES=""
 
 LABEL org.opencontainers.image.title="BigForge" \
@@ -56,7 +60,7 @@ COPY --from=builder --chown=node:node /build/dist ./dist
 # bundle uses the built-in node:sqlite, so no native modules are needed.
 RUN cd dist/server \
     && npm install --omit=dev --ignore-scripts --no-audit --no-fund ${EXTRA_RUNTIME_PACKAGES} \
-    && npm cache clean --force
+    && rm -rf "${HOME}/.npm"
 
 EXPOSE 4747
 
