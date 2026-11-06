@@ -267,6 +267,8 @@
   min-width: 0;
 }
 .bf-table-wrap {
+  /* Positioned, so visually hidden (absolutely positioned) text inside stays within this scroll container. */
+  position: relative;
   overflow: auto;
   background: var(--surface-1);
   border: 1px solid var(--line);

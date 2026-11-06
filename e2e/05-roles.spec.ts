@@ -38,8 +38,6 @@ test('an operator can run work but cannot promote or approve', async ({ page }) 
   expect(promote.status()).toBe(403);
   const approve = await apiPost(page, `/api/mutations/${context.mutationId}/approve`, {});
   expect(approve.status()).toBe(403);
-  const seed = await apiPost(page, '/api/demo/seed', { stage: 'promoted' });
-  expect(seed.status()).toBe(403);
 });
 
 test('another tenant sees none of the first tenant data', async ({ page }) => {

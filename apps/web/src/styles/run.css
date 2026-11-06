@@ -1074,6 +1074,7 @@
   font-size: var(--fs-sm);
 }
 .run-table-wrap {
+  position: relative;
   overflow-x: auto;
   background: var(--bg-raised);
   border: 1px solid var(--line);
