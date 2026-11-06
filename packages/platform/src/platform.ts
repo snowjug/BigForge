@@ -10,15 +10,21 @@ import {
 } from '@bigforge/providers';
 import type { RunDetailDto, SessionUser, SettingsDto, SystemDto } from '@bigforge/schemas';
 import { hashPassword, verifyPassword } from '@bigforge/security';
-import { type Actor, AppError, SYSTEM_ACTOR_NAME } from './actor';
+import { type Actor, AppError, SYSTEM_ACTOR_NAME, assertCan } from './actor';
 import { type BigForgeMetrics, createMetrics } from '@bigforge/observability';
-import { type PlatformConfig } from './config';
+import { ConfigError, type PlatformConfig } from './config';
 import { toRunDetail, toRunSummary, toTaskDto } from './services/shared';
 import { type Db, migrate, openDatabase } from './db/database';
 import { type UserRow, Store } from './db/store';
 import { createEngine } from './engine';
 import type { EngineDeps } from './execution';
-import { personas, seedBootstrapAdmin, seedDemoIdentities } from './seed';
+import {
+  PRIMARY_DEMO_TENANT,
+  SEED_USERS,
+  personas,
+  seedBootstrapAdmin,
+  seedDemoIdentities,
+} from './seed';
 import { DemoService } from './services/demo';
 import { DriftService, DRIFT_SYSTEM_NAME } from './services/drift';
 import { DEFAULT_ECONOMICS_ASSUMPTIONS, EconomicsService } from './services/economics';
@@ -97,6 +103,13 @@ export class Platform {
     this.migrationVersion = migrate(db).current;
     this.store = new Store(db);
     const now = this.now();
+    // A database first opened in demo mode keeps its public demo identities forever: never serve it as production.
+    if (this.config.mode === 'production' && SEED_USERS.some((u) => this.store.getUser(u.id))) {
+      db.close();
+      throw new ConfigError(
+        'This database contains the public demo identities. Refusing to start in production mode: use a new database file or data directory',
+      );
+    }
     // Idempotent: restarting against an existing database must not re-seed identities.
     if (this.store.listTenants().length === 0) {
       if (this.config.mode === 'demo') seedDemoIdentities(this.store, now);
@@ -185,14 +198,6 @@ export class Platform {
       : null;
   }
 
-  reviewerActor(tenantId: string): Actor {
-    const u =
-      this.store.listUsers().find((x) => x.tenantId === tenantId && x.role === 'reviewer') ??
-      this.store.listUsers().find((x) => x.tenantId === tenantId && x.role === 'admin');
-    if (!u) throw new AppError(409, 'conflict', 'No reviewer identity exists for this tenant');
-    return { userId: u.id, name: u.displayName, role: u.role, tenantId };
-  }
-
   personas() {
     return this.config.mode === 'demo' ? personas() : [];
   }
@@ -279,8 +284,20 @@ export class Platform {
     return { ok: Object.values(checks).every(Boolean), checks };
   }
 
-  /** Drops all state and re-seeds. Starts a new audit chain that records the previous chain heads. */
+  /**
+   * Drops all state and re-seeds. Starts a new audit chain that records the previous chain heads.
+   * It recreates the whole database, so it is a demo-mode operation for an admin of the primary demo tenant.
+   */
   async reset(actor: Actor): Promise<void> {
+    if (this.config.mode !== 'demo')
+      throw new AppError(403, 'forbidden', 'Demo reset is disabled outside demo mode');
+    assertCan(actor, 'reset_demo');
+    if (actor.tenantId !== PRIMARY_DEMO_TENANT)
+      throw new AppError(
+        403,
+        'forbidden',
+        'Only an admin of the primary demo tenant can reset the demo: it recreates every tenant',
+      );
     const heads = this.store
       .listTenants()
       .map((t) => ({ tenantId: t.id, head: this.store.forTenant(t.id).verifyAudit().headHash }));

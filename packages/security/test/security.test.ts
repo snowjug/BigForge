@@ -96,6 +96,54 @@ describe('redaction', () => {
     expect(JSON.stringify(value)).not.toContain('abcdefghijklmnop1234');
     expect(count).toBe(1);
   });
+
+  it('redacts GitHub, API-key, Slack, Azure and Basic-auth credentials', () => {
+    // Assembled at run time so that no secret-shaped literal sits in the repository.
+    const basic = Buffer.from('user:correct horse battery').toString('base64');
+    const azureKey = 'Qm9ndXNLZXlGb3JUZXN0aW5nT25seQ'.repeat(2);
+    const sasSig = 'a1b2c3d4e5f6%2B'.repeat(4);
+    const secrets = [
+      ['ghp', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'].join('_'),
+      `sk-proj-${'Z9y8X7w6V5u4T3s2R1q0'.repeat(2)}`,
+      `xoxb-${'1234567890'}-${'abcdefghij'}`,
+      azureKey,
+      sasSig,
+      basic,
+    ];
+    const input = [
+      secrets[0],
+      secrets[1],
+      secrets[2],
+      `DefaultEndpointsProtocol=https;AccountKey=${azureKey}==`,
+      `https://acct.blob.core.windows.net/c/f?sv=2024-01-01&sig=${sasSig}`,
+      `Authorization: Basic ${basic}`,
+    ].join('\n');
+    const result = redactSecrets(input);
+    for (const secret of secrets) expect(result.text).not.toContain(secret);
+    expect(result.kinds).toEqual(
+      expect.arrayContaining([
+        'github_token',
+        'api_key',
+        'azure_key',
+        'sas_signature',
+        'basic_auth',
+      ]),
+    );
+  });
+
+  it('stays fast on adversarial input, because logs are untrusted', () => {
+    const inputs = [
+      'a.'.repeat(100_000),
+      'token='.repeat(30_000),
+      ['-----BEGIN', 'PRIVATE KEY-----'].join(' ').repeat(7_000),
+      'eyJ'.repeat(60_000),
+      'x://a:'.repeat(30_000),
+    ];
+    const started = Date.now();
+    for (const text of inputs) redactSecrets(text);
+    // The unbounded patterns this replaced took over a minute on the first input alone.
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
 });
 
 describe('path confinement', () => {
@@ -345,5 +393,12 @@ describe('hash chain, auth and evidence screening', () => {
     expect(stripped.text).toContain('error TS2307');
     expect(stripped.text).not.toContain('curl');
     expect(screenForInstructions('error TS2307: Cannot find module')).toEqual([]);
+  });
+
+  it('screens very long lines without quadratic cost', () => {
+    const started = Date.now();
+    screenForInstructions('curl '.repeat(40_000));
+    stripInstructionLines('wget '.repeat(40_000));
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 });

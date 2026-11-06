@@ -70,6 +70,25 @@ function parseArgs(raw: string | undefined): Record<string, unknown> {
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+const MAX_RESPONSE_CHARS = 2_000_000;
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/** Credentials only travel over TLS; plain http is accepted solely for a local protocol stub. */
+function assertSafeBaseUrl(baseUrl: string): void {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new ProviderError('Live provider base URL is not a valid URL', { retryable: false });
+  }
+  const local = LOOPBACK.has(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local))
+    throw new ProviderError(
+      'Live provider base URL must use https (http is allowed only for localhost)',
+      { retryable: false },
+    );
+}
+
 /**
  * OpenAI-compatible / Azure OpenAI chat-completions adapter.
  * Usage and latency are provider-reported / wall-clock (`measured`).
@@ -81,6 +100,7 @@ export class LiveProvider implements Provider {
   private readonly config: LiveProviderConfig;
 
   constructor(config: LiveProviderConfig) {
+    assertSafeBaseUrl(config.baseUrl);
     this.config = config;
     this.id = config.id;
   }
@@ -130,6 +150,8 @@ export class LiveProvider implements Provider {
           headers: await this.headers(),
           body: JSON.stringify(body),
           signal: combined,
+          // The API key must never follow a redirect to another host.
+          redirect: 'error',
         });
         if (!res.ok) {
           const detail = redactSecrets((await res.text()).slice(0, 300)).text;
@@ -139,7 +161,12 @@ export class LiveProvider implements Provider {
             status: res.status,
           });
         }
-        const json = (await res.json()) as OpenAiResponse;
+        const rawBody = await res.text();
+        if (rawBody.length > MAX_RESPONSE_CHARS)
+          throw new ProviderError('Provider response exceeded the size limit', {
+            retryable: false,
+          });
+        const json = JSON.parse(rawBody) as OpenAiResponse;
         const message = json.choices?.[0]?.message;
         if (!message)
           throw new ProviderError('Provider response had no choices', { retryable: false });

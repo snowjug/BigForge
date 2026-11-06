@@ -47,8 +47,9 @@ export function registerReflexRoutes(app: FastifyInstance, platform: Platform): 
   });
 
   app.post('/api/reflexes/versions/:id/shadow', (req, reply) => {
-    const { actor } = tenant(req);
+    const { actor, ts } = tenant(req);
     const { id } = parseBody(Id, req.params);
+    platform.validation.getVersion(ts, id);
     const body = parseBody(ShadowBody, req.body ?? {});
     const job = platform.jobs.enqueue(actor, 'shadow', {
       versionId: id,
@@ -120,8 +121,9 @@ export function registerReflexRoutes(app: FastifyInstance, platform: Platform): 
   });
 
   app.post('/api/reflexes/versions/:id/canary', (req, reply) => {
-    const { actor } = tenant(req);
+    const { actor, ts } = tenant(req);
     const { id } = parseBody(Id, req.params);
+    platform.validation.getVersion(ts, id);
     const job = platform.jobs.enqueue(actor, 'canary', { versionId: id });
     platform.jobs.kick();
     void reply.status(202);
@@ -129,8 +131,9 @@ export function registerReflexRoutes(app: FastifyInstance, platform: Platform): 
   });
 
   app.post('/api/reflexes/versions/:id/mutations', (req, reply) => {
-    const { actor } = tenant(req);
+    const { actor, ts } = tenant(req);
     const { id } = parseBody(Id, req.params);
+    platform.validation.getVersion(ts, id);
     const job = platform.jobs.enqueue(actor, 'mutation', { versionId: id });
     platform.jobs.kick();
     void reply.status(202);

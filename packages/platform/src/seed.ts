@@ -18,6 +18,9 @@ export const SEED_TENANTS = [
   { id: 'ten_globex', slug: 'globex', name: 'Globex Build Infrastructure' },
 ] as const;
 
+/** The demo tenant whose admin may reset the (shared) demo database. */
+export const PRIMARY_DEMO_TENANT = 'ten_acme';
+
 export const SEED_USERS: SeedUser[] = [
   {
     id: 'usr_ada',

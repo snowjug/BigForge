@@ -115,6 +115,12 @@ var coreEnv = [
     name: 'BIGFORGE_DATA_DIR'
     value: dataDir
   }
+  // The Container Apps ingress is one trusted reverse-proxy hop: use the forwarded client address for
+  // sign-in rate limiting instead of the ingress address that every client would share.
+  {
+    name: 'BIGFORGE_TRUST_PROXY_HOPS'
+    value: '1'
+  }
   {
     name: 'BIGFORGE_SESSION_SECRET'
     secretRef: 'session-secret'

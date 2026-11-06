@@ -32,17 +32,28 @@ export function resolveInside(root: string, rel: string): string {
   return resolved;
 }
 
-/** Like resolveInside, and additionally rejects symlinks that resolve outside the root. */
-export async function resolveInsideReal(root: string, rel: string): Promise<string> {
-  const resolved = resolveInside(root, rel);
+export interface ConfinedPath {
+  /** The path as named by the caller, resolved lexically. */
+  lexical: string;
+  /** Where the operating system will really read or write, relative to the real root (POSIX separators). */
+  realRelative: string;
+}
+
+/**
+ * Resolves `rel` inside `root` both lexically and through symlinks. Rejects any path whose real
+ * location is outside the root. Returns both views so permissions can be checked against each:
+ * a symlink inside an allowed directory must not grant access to a protected file.
+ */
+export async function resolveConfined(root: string, rel: string): Promise<ConfinedPath> {
+  const lexical = resolveInside(root, rel);
   const absRoot = await realpath(path.resolve(root));
   let real: string;
   try {
-    real = await realpath(resolved);
+    real = await realpath(lexical);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       // Not yet created (writes): check the nearest existing parent instead.
-      real = path.join(await realpath(path.dirname(resolved)), path.basename(resolved));
+      real = path.join(await realpath(path.dirname(lexical)), path.basename(lexical));
     } else {
       throw err;
     }
@@ -51,7 +62,12 @@ export async function resolveInsideReal(root: string, rel: string): Promise<stri
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     throw new PathViolationError('symlink_escape', `Path resolves outside the root: ${rel}`);
   }
-  return resolved;
+  return { lexical, realRelative: relative.split(path.sep).join('/') };
+}
+
+/** Like resolveInside, and additionally rejects symlinks that resolve outside the root. */
+export async function resolveInsideReal(root: string, rel: string): Promise<string> {
+  return (await resolveConfined(root, rel)).lexical;
 }
 
 export function toPosixRelative(root: string, absolute: string): string {

@@ -156,6 +156,94 @@ describe('role enforcement and tenant isolation', () => {
     const grace = await login('grace@acme.test');
     expect((await call(grace, 'POST', '/api/demo/reset', {})).statusCode).toBe(403);
   });
+
+  it('keeps the demo reset, seeding and presenter inside the caller role and tenant', async () => {
+    const gus = await login('gus@globex.test');
+    expect((await call(gus, 'POST', '/api/demo/reset', {})).statusCode).toBe(403);
+    const linus = await login('linus@acme.test');
+    expect((await call(linus, 'POST', '/api/demo/seed', { stage: 'promoted' })).statusCode).toBe(
+      403,
+    );
+    const vera = await login('vera@acme.test');
+    expect((await call(vera, 'POST', '/api/demo/goto', { step: 1 })).statusCode).toBe(403);
+    expect(platform.store.listTenants().length).toBeGreaterThan(1);
+  });
+});
+
+describe('request-level defences', () => {
+  it('runs authentication and the CSRF check whatever spelling of the URL reaches the router', async () => {
+    const ada = await login('ada@acme.test');
+    for (const url of ['/%61pi/demo/reset', '/api/demo/reset']) {
+      const res = await app.inject({
+        method: 'POST',
+        url,
+        headers: { cookie: ada, 'content-type': 'text/plain' },
+        payload: '',
+      });
+      expect(res.statusCode, url).toBe(403);
+      expect(res.json()).toMatchObject({ error: { code: 'csrf' } });
+    }
+    expect((await app.inject({ url: '/%61pi/metrics/definitions' })).statusCode).toBe(401);
+    expect(platform.store.listTenants().length).toBeGreaterThan(0);
+  });
+
+  it('refuses mutating requests that the browser labels cross-site', async () => {
+    const ada = await login('ada@acme.test');
+    const post = (site: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/demo/goto',
+        headers: { ...HEADERS, cookie: ada, 'sec-fetch-site': site },
+        payload: { step: 1 },
+      });
+    expect((await post('cross-site')).statusCode).toBe(403);
+    expect((await post('same-site')).statusCode).toBe(403);
+    expect((await post('same-origin')).statusCode).toBe(200);
+  });
+
+  it('refuses host names it was not configured to serve (DNS rebinding)', async () => {
+    const guarded = await buildApp(platform, { allowedHosts: ['localhost', '127.0.0.1', '[::1]'] });
+    try {
+      const get = (host: string) =>
+        guarded.inject({ url: '/api/health', headers: { host } }).then((r) => r.statusCode);
+      expect(await get('evil.example:4747')).toBe(403);
+      expect(await get('localhost.evil.example')).toBe(403);
+      expect(await get('localhost:4747')).toBe(200);
+      expect(await get('127.0.0.1')).toBe(200);
+      expect(await get('[::1]:4747')).toBe(200);
+    } finally {
+      await guarded.close();
+    }
+  });
+
+  it('rejects work on unknown Reflex versions at once instead of queueing a doomed job', async () => {
+    const linus = await login('linus@acme.test');
+    for (const action of ['shadow', 'canary', 'mutations']) {
+      const res = await call(linus, 'POST', `/api/reflexes/versions/rfv_missing/${action}`, {});
+      expect(res.statusCode, action).toBe(404);
+    }
+  });
+
+  it('rate limits per client behind a trusted proxy and cannot be spoofed past it', async () => {
+    const proxied = await buildApp(platform, { trustProxyHops: 1 });
+    try {
+      const attempt = (forwardedFor: string) =>
+        proxied
+          .inject({
+            method: 'POST',
+            url: '/api/auth/login',
+            headers: { ...HEADERS, 'x-forwarded-for': forwardedFor },
+            payload: { email: 'nobody@globex.test', password: 'wrong' },
+          })
+          .then((r) => r.statusCode);
+      for (let i = 0; i < 10; i += 1) expect(await attempt('203.0.113.7')).toBe(401);
+      expect(await attempt('203.0.113.7')).toBe(429);
+      expect(await attempt('203.0.113.8')).toBe(401);
+      expect(await attempt('198.51.100.9, 203.0.113.7')).toBe(429);
+    } finally {
+      await proxied.close();
+    }
+  });
 });
 
 describe('command safety playground', () => {

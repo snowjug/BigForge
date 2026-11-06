@@ -23,7 +23,7 @@ import {
   type ValidationSummaryDto,
 } from '@bigforge/schemas';
 import { can, contentHash } from '@bigforge/security';
-import { type Actor, assertCan, conflict, notFound } from '../actor';
+import { type Actor, assertCan, badRequest, conflict, notFound } from '../actor';
 import type { ComparisonRow, ReflexVersionRow, RunRow, TenantStore } from '../db/store';
 import type { Page } from '../db/table';
 import { materialize, runBaseline, runReflex } from '../execution';
@@ -244,10 +244,18 @@ export class ValidationService {
   async shadow(
     actor: Actor,
     versionId: string,
-    scenarioIds: readonly string[] = SHADOW_IDS,
+    requestedIds: readonly string[] = SHADOW_IDS,
     progress?: ValidationProgress,
   ): Promise<ReflexVersionDto> {
     assertCan(actor, 'shadow');
+    // Shadow evidence must come from the held-out shadow scenarios: training tasks would inflate agreement.
+    const allowed = new Set<string>(SHADOW_IDS);
+    const scenarioIds = [...new Set(requestedIds)];
+    const rejected = scenarioIds.filter((id) => !allowed.has(id));
+    if (scenarioIds.length === 0 || rejected.length > 0)
+      throw badRequest(`Shadow runs may only use the shadow scenarios: ${SHADOW_IDS.join(', ')}`, {
+        rejected,
+      });
     const ts = this.p.store.forTenant(actor.tenantId);
     let version = this.getVersion(ts, versionId);
     if (version.status !== 'shadow')
@@ -363,7 +371,13 @@ export class ValidationService {
   }
 
   // ---- human decisions ----
-  promote(actor: Actor, versionId: string, comment: string): ReflexVersionRow {
+  /** `seeded` marks a fast-forward approval made by the demo seeder: recorded, but never as a human decision. */
+  promote(
+    actor: Actor,
+    versionId: string,
+    comment: string,
+    options: { seeded?: boolean } = {},
+  ): ReflexVersionRow {
     assertCan(actor, 'promote');
     const ts = this.p.store.forTenant(actor.tenantId);
     let version = this.getVersion(ts, versionId);
@@ -424,7 +438,13 @@ export class ValidationService {
       actorUserId: actor.userId,
       actorName: actor.name,
       comment,
-      evidence: { gate: result, evidence, contentHash: actual, confidence: trust.confidence },
+      evidence: {
+        gate: result,
+        evidence,
+        contentHash: actual,
+        confidence: trust.confidence,
+        ...(options.seeded ? { seeded: true } : {}),
+      },
       createdAt: this.p.now(),
     });
     this.p.audit(
@@ -437,7 +457,8 @@ export class ValidationService {
         comment,
         contentHash: actual,
         confidence: trust.confidence,
-        human: true,
+        human: options.seeded !== true,
+        ...(options.seeded ? { seeded: true } : {}),
       },
     );
     return version;

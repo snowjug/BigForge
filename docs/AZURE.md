@@ -607,6 +607,7 @@ base is `node:24-slim` by tag, not by digest.
 | `BIGFORGE_MODE`                          | `appMode`                                                                                      |
 | `BIGFORGE_PROVIDER_MODE`                 | `providerMode`                                                                                 |
 | `BIGFORGE_DATA_DIR`                      | `/app/data` (ephemeral)                                                                        |
+| `BIGFORGE_TRUST_PROXY_HOPS`              | `1`: the ingress is one trusted proxy hop, so sign-in rate limiting sees the real client address |
 | `BIGFORGE_SESSION_SECRET`                | `secretRef` to the Key Vault secret                                                            |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING`  | `secretRef` to a Container App secret                                                          |
 | `APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL`, `APPLICATIONINSIGHTS_STATSBEAT_DISABLED`, `APPLICATION_INSIGHTS_NO_STATSBEAT` | `true` each, unless `enableStatsbeat` is `true` (opt-out; see the telemetry section) |

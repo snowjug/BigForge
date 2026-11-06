@@ -103,7 +103,7 @@ export function evaluateRules(input: VerifyInput, verifiedAt: string): Verificat
         const bDeps = (b.dependencies ?? {}) as Record<string, string>;
         const aDeps = (a.dependencies ?? {}) as Record<string, string>;
         for (const dep of Object.keys(aDeps)) {
-          if (!(dep in bDeps) && !dep.startsWith('@acme/') && !(dep in catalog))
+          if (!Object.hasOwn(bDeps, dep) && !dep.startsWith('@acme/') && !Object.hasOwn(catalog, dep))
             violations.push(`${file} added unpinned dependency ${dep}`);
         }
       }

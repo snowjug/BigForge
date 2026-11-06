@@ -1,6 +1,6 @@
 import { HELD_OUT_ID, LEARNING_IDS, SHADOW_IDS } from '@bigforge/lab-monorepo';
 import type { DemoContext, DemoStateDto, DemoStepDto, DemoStepKind } from '@bigforge/schemas';
-import { type Actor, assertCan, badRequest, conflict } from '../actor';
+import { type Actor, AppError, assertCan, badRequest, conflict } from '../actor';
 import type { Platform } from '../platform';
 
 interface StepDef {
@@ -265,7 +265,7 @@ export const DEMO_STEPS: StepDef[] = [
 
 export const DEMO_TOTAL = DEMO_STEPS.length;
 
-const EMPTY_CONTEXT: DemoContext = {
+const emptyContext = (): DemoContext => ({
   taskIds: {},
   familyId: null,
   reflexVersionId: null,
@@ -275,7 +275,20 @@ const EMPTY_CONTEXT: DemoContext = {
   killerReferenceRunId: null,
   driftCheckId: null,
   mutationId: null,
-};
+});
+
+/** The step that records the human approval; stages at or beyond it include a promotion. */
+const PROMOTE_STEP = 11;
+
+/** Approvals made by the fast-forward helper are never attributed to a real person. */
+function seederActor(requestedBy: Actor): Actor {
+  return {
+    userId: 'system',
+    name: `Demo seeder (simulated reviewer, requested by ${requestedBy.name})`,
+    role: 'admin',
+    tenantId: requestedBy.tenantId,
+  };
+}
 
 export const SEED_STAGES = {
   learned: 7,
@@ -295,6 +308,12 @@ export class DemoService {
     this.p = platform;
   }
 
+  /** The guided demo and its fast-forward helpers exist in demo mode only. */
+  private requireDemoMode(): void {
+    if (this.p.config.mode !== 'demo')
+      throw new AppError(404, 'not_found', 'The guided demo is available in demo mode only');
+  }
+
   private load(tenantId: string) {
     const ts = this.p.store.forTenant(tenantId);
     const row = ts.getDemoState();
@@ -303,13 +322,14 @@ export class DemoService {
       step: row?.step ?? 1,
       completed: row?.completed ?? [],
       context: {
-        ...EMPTY_CONTEXT,
+        ...emptyContext(),
         ...(row?.context as Partial<DemoContext> | undefined),
       },
     };
   }
 
   state(actor: Actor): DemoStateDto {
+    this.requireDemoMode();
     const { step, completed, context } = this.load(actor.tenantId);
     const jobId = this.activeJobId.get(actor.tenantId);
     let activeJob = null;
@@ -329,7 +349,9 @@ export class DemoService {
 
   /** Moves the presenter's cursor (Next / Previous / Restart). Does not perform actions. */
   goto(actor: Actor, step: number): DemoStateDto {
-    assertCan(actor, 'read');
+    this.requireDemoMode();
+    // The cursor is shared by the whole tenant, so a read-only role must not move it.
+    assertCan(actor, 'run_task');
     if (!Number.isInteger(step) || step < 1 || step > DEMO_TOTAL)
       throw badRequest(`Step must be between 1 and ${DEMO_TOTAL}`);
     const { ts, completed, context } = this.load(actor.tenantId);
@@ -346,6 +368,7 @@ export class DemoService {
     n: number,
     options: { simulateHuman?: boolean } = {},
   ): Promise<DemoStateDto> {
+    this.requireDemoMode();
     assertCan(actor, 'run_task');
     if (!Number.isInteger(n) || n < 1 || n > DEMO_TOTAL)
       throw badRequest(`Step must be between 1 and ${DEMO_TOTAL}`);
@@ -363,10 +386,18 @@ export class DemoService {
     return this.state(actor);
   }
 
-  /** Fast-forwards to a stage using the same code paths (a simulated reviewer performs the human step). */
+  /**
+   * Fast-forwards to a stage using the same code paths. Demo mode only. Stages that include the
+   * human approval (step 11) require the caller to be allowed to promote, and the approval is recorded
+   * as a simulated one by a system identity, never as a decision by a named reviewer.
+   */
   async seed(actor: Actor, stage: keyof typeof SEED_STAGES): Promise<DemoStateDto> {
+    this.requireDemoMode();
     assertCan(actor, 'run_task');
-    return this.perform(actor, SEED_STAGES[stage], { simulateHuman: true });
+    const target = SEED_STAGES[stage];
+    const promotionPending = !this.load(actor.tenantId).completed.includes(PROMOTE_STEP);
+    if (target >= PROMOTE_STEP && promotionPending) assertCan(actor, 'promote');
+    return this.perform(actor, target, { simulateHuman: true });
   }
 
   private save(
@@ -473,11 +504,11 @@ export class DemoService {
       case 'promote': {
         const versionId = needVersion();
         if (options.simulateHuman) {
-          const reviewer = this.p.reviewerActor(actor.tenantId);
           this.p.validation.promote(
-            reviewer,
+            seederActor(actor),
             versionId,
-            'Seeded demo approval (simulated reviewer; not a human decision)',
+            `Seeded demo approval: fast-forward requested by ${actor.name}. Not an individual review of the evidence`,
+            { seeded: true },
           );
         } else {
           this.p.validation.promote(

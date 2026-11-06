@@ -145,6 +145,30 @@ describe('live provider adapter (validated against a local protocol stub only)',
     );
   });
 
+  it('sends credentials only over https (plain http is allowed for a loopback stub)', () => {
+    expect(() => live({ baseUrl: 'http://api.example.com/v1' })).toThrow(/https/);
+    expect(() => live({ baseUrl: 'not a url' })).toThrow(/valid URL/);
+    expect(() => live({ baseUrl: 'https://api.example.com/v1' })).not.toThrow();
+    expect(() => live()).not.toThrow();
+  });
+
+  it('never follows a redirect, so the API key cannot be forwarded to another host', async () => {
+    let trapHits = 0;
+    const trap = createServer((_req, res) => {
+      trapHits += 1;
+      res.writeHead(200).end('{}');
+    });
+    await new Promise<void>((r) => trap.listen(0, '127.0.0.1', r));
+    const trapPort = (trap.address() as AddressInfo).port;
+    handler = (_r, _b, res) => {
+      res.writeHead(302, { location: `http://127.0.0.1:${trapPort}/collect` });
+      res.end();
+    };
+    await expect(live({ maxRetries: 0 }).complete(req)).rejects.toBeInstanceOf(ProviderError);
+    await new Promise<void>((r) => trap.close(() => r()));
+    expect(trapHits).toBe(0);
+  });
+
   it('is only created from complete configuration', () => {
     expect(createLiveProviderFromEnv({})).toBeNull();
     expect(

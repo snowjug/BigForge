@@ -16,7 +16,7 @@ const RULES: { rule: string; re: RegExp }[] = [
     rule: 'run_this_command',
     re: /\b(?:run|execute)\s+(?:the\s+following|this)\s+(?:command|script|code)\b/i,
   },
-  { rule: 'pipe_to_shell', re: /\b(?:curl|wget)\b[^\n|]*\|\s*(?:ba|z)?sh\b/i },
+  { rule: 'pipe_to_shell', re: /\b(?:curl|wget)\b[^\n|]{0,200}\|\s*(?:ba|z)?sh\b/i },
   {
     rule: 'reveal_secrets',
     re: /\b(?:reveal|print|exfiltrate|send)\s+(?:your|the|all)\s+(?:system\s+prompt|secrets?|api\s*keys?|credentials|tokens?)\b/i,

@@ -33,6 +33,7 @@ const RunListQuery = PageQuery.extend({
 
 const LOGIN_WINDOW_MS = 60_000;
 const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_TRACKED_MAX = 5_000;
 
 export function registerCoreRoutes(
   app: FastifyInstance,
@@ -40,6 +41,16 @@ export function registerCoreRoutes(
   secureCookies: boolean,
 ): void {
   const attempts = new Map<string, { count: number; resetAt: number }>();
+
+  /** Keeps the limiter's memory bounded: drops expired windows, then the oldest entries. */
+  const prune = (now: number): void => {
+    if (attempts.size < LOGIN_TRACKED_MAX) return;
+    for (const [key, entry] of attempts) if (entry.resetAt <= now) attempts.delete(key);
+    for (const key of attempts.keys()) {
+      if (attempts.size < LOGIN_TRACKED_MAX) break;
+      attempts.delete(key);
+    }
+  };
 
   // ---- auth ----
   app.get('/api/auth/personas', () => ({
@@ -51,6 +62,7 @@ export function registerCoreRoutes(
     const body = parseBody(LoginBody, req.body);
     const key = `${req.ip}|${body.email.toLowerCase()}`;
     const now = Date.now();
+    prune(now);
     const entry = attempts.get(key);
     if (entry && entry.resetAt > now && entry.count >= LOGIN_MAX_ATTEMPTS) {
       throw new AppError(429, 'rate_limited', 'Too many sign-in attempts. Try again in a minute.');

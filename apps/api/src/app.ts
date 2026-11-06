@@ -19,7 +19,8 @@ declare module 'fastify' {
 
 export const SESSION_COOKIE = 'bf_session';
 const SESSION_TTL_SECONDS = 8 * 60 * 60;
-const PUBLIC_PATHS = new Set([
+/** Routes (as registered, not as requested) that need no session. */
+const PUBLIC_ROUTES = new Set([
   '/api/health',
   '/api/ready',
   '/api/auth/login',
@@ -33,6 +34,24 @@ export interface AppOptions {
   webDir?: string | undefined;
   logger?: boolean;
   secureCookies?: boolean;
+  /**
+   * When set, requests whose Host header names any other host are refused (DNS-rebinding defence for
+   * servers bound to loopback). Omit to accept any host.
+   */
+  allowedHosts?: readonly string[] | undefined;
+  /** Number of reverse-proxy hops to trust for the client address (rate limiting). Default 0: trust none. */
+  trustProxyHops?: number | undefined;
+}
+
+/** Host header -> lower-case hostname without port (handles bracketed IPv6). */
+export function hostnameOf(header: string | undefined): string {
+  const host = (header ?? '').trim().toLowerCase();
+  if (host.startsWith('[')) {
+    const end = host.indexOf(']');
+    return end > 0 ? host.slice(0, end + 1) : host;
+  }
+  const colon = host.lastIndexOf(':');
+  return colon > -1 ? host.slice(0, colon) : host;
 }
 
 export function parseBody<T>(schema: ZodType<T>, data: unknown): T {
@@ -84,8 +103,24 @@ export async function buildApp(
         }
       : false,
     bodyLimit: 256 * 1024,
-    trustProxy: false,
+    // Behind a reverse proxy (Azure Container Apps ingress) the client address comes from X-Forwarded-For;
+    // trust only the configured number of hops so clients cannot spoof it.
+    trustProxy:
+      options.trustProxyHops && options.trustProxyHops > 0
+        ? (_address: string, hop: number) => hop < (options.trustProxyHops ?? 0)
+        : false,
   });
+
+  if (options.allowedHosts) {
+    const allowed = new Set(options.allowedHosts.map((h) => h.toLowerCase()));
+    app.addHook('onRequest', (req, _reply, done) => {
+      if (!allowed.has(hostnameOf(req.headers.host))) {
+        done(new AppError(403, 'bad_host', 'This host name is not accepted by the server'));
+        return;
+      }
+      done();
+    });
+  }
 
   await app.register(fastifyCookie);
   await app.register(fastifyHelmet, {
@@ -120,40 +155,6 @@ export async function buildApp(
   });
 
   app.decorateRequest('actor', null);
-
-  // Authentication: a signed session cookie, re-validated against the database on every request.
-  app.addHook('onRequest', (req, _reply, done) => {
-    req.actor = null;
-    const token = req.cookies[SESSION_COOKIE];
-    if (token) {
-      const claims = verifySession(
-        token,
-        platform.config.sessionSecret,
-        Math.floor(Date.now() / 1000),
-      );
-      if (claims) req.actor = platform.actorFor(claims.sub);
-    }
-    done();
-  });
-
-  // CSRF defence: mutating API calls must carry a custom header, which browsers cannot add cross-site without a CORS preflight (not granted).
-  app.addHook('onRequest', (req, _reply, done) => {
-    const mutating = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
-    if (mutating && req.url.startsWith('/api/') && req.headers['x-bigforge-client'] !== 'web') {
-      done(new AppError(403, 'csrf', 'Missing X-BigForge-Client header'));
-      return;
-    }
-    done();
-  });
-
-  app.addHook('onRequest', (req, _reply, done) => {
-    const pathname = req.url.split('?')[0] ?? '';
-    if (pathname.startsWith('/api/') && !PUBLIC_PATHS.has(pathname) && !req.actor) {
-      done(new AppError(401, 'unauthenticated', 'Sign in to continue'));
-      return;
-    }
-    done();
-  });
 
   app.addHook('onResponse', (req, reply, done) => {
     const route = req.routeOptions.url ?? 'unmatched';
@@ -214,24 +215,72 @@ export async function buildApp(
     void reply.status(404).send({ error: { code: 'not_found', message: 'Not found' } });
   });
 
-  app.get('/api/metrics', (req, reply) => {
-    const actor = requireActor(req);
-    assertCan(actor, 'manage_settings');
-    void reply.type('text/plain; version=0.0.4');
-    return platform.metrics.registry.render();
-  });
-
-  app.get('/api/health', () => ({ status: 'ok', time: new Date().toISOString() }));
-  app.get('/api/ready', (_req, reply) => {
-    const r = platform.ready();
-    void reply.status(r.ok ? 200 : 503);
-    return { status: r.ok ? 'ready' : 'not_ready', checks: r.checks };
-  });
-
   const secure = options.secureCookies ?? platform.config.mode === 'production';
-  registerCoreRoutes(app, platform, secure);
-  registerReflexRoutes(app, platform);
-  registerOpsRoutes(app, platform);
+
+  // Every API route lives in this encapsulated scope, so the authentication and CSRF hooks apply to all of
+  // them by construction. They never inspect the URL string: a percent-encoded or absolute-form spelling that
+  // reaches the router still runs them, and public routes are matched by their registered pattern.
+  await app.register((api, _opts, done) => {
+    // Authentication: a signed session cookie, re-validated against the database on every request.
+    api.addHook('onRequest', (req, _reply, hookDone) => {
+      req.actor = null;
+      const token = req.cookies[SESSION_COOKIE];
+      if (token) {
+        const claims = verifySession(
+          token,
+          platform.config.sessionSecret,
+          Math.floor(Date.now() / 1000),
+        );
+        if (claims) req.actor = platform.actorFor(claims.sub);
+      }
+      hookDone();
+    });
+
+    // CSRF defence: mutating calls must carry a custom header, which a browser cannot add cross-site without a
+    // CORS preflight (never granted), and must not be labelled cross-site by the browser itself.
+    api.addHook('onRequest', (req, _reply, hookDone) => {
+      const mutating = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+      if (mutating) {
+        if (req.headers['x-bigforge-client'] !== 'web') {
+          hookDone(new AppError(403, 'csrf', 'Missing X-BigForge-Client header'));
+          return;
+        }
+        const site = req.headers['sec-fetch-site'];
+        if (site === 'cross-site' || site === 'same-site') {
+          hookDone(new AppError(403, 'csrf', 'Cross-site requests are not accepted'));
+          return;
+        }
+      }
+      hookDone();
+    });
+
+    api.addHook('onRequest', (req, _reply, hookDone) => {
+      if (!PUBLIC_ROUTES.has(req.routeOptions.url ?? '') && !req.actor) {
+        hookDone(new AppError(401, 'unauthenticated', 'Sign in to continue'));
+        return;
+      }
+      hookDone();
+    });
+
+    api.get('/api/metrics', (req, reply) => {
+      const actor = requireActor(req);
+      assertCan(actor, 'manage_settings');
+      void reply.type('text/plain; version=0.0.4');
+      return platform.metrics.registry.render();
+    });
+
+    api.get('/api/health', () => ({ status: 'ok', time: new Date().toISOString() }));
+    api.get('/api/ready', (_req, reply) => {
+      const r = platform.ready();
+      void reply.status(r.ok ? 200 : 503);
+      return { status: r.ok ? 'ready' : 'not_ready', checks: r.checks };
+    });
+
+    registerCoreRoutes(api, platform, secure);
+    registerReflexRoutes(api, platform);
+    registerOpsRoutes(api, platform);
+    done();
+  });
 
   if (options.webDir && existsSync(options.webDir)) {
     await app.register(fastifyStatic, {

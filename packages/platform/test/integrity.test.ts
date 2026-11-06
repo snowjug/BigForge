@@ -48,5 +48,24 @@ describe('Reflex integrity is enforced by the platform, not only by the executor
     expect(failures.items).toHaveLength(1);
     expect(failures.items[0]?.subjectId).toBe(version.id);
     expect(ts.verifyAudit().ok).toBe(true);
+
+    // Put the specification back so the next test can promote this version.
+    ts.versions.update(ts.tenantId, version.id, { spec: version.spec });
+    expect(platform.validation.versionDto(grace, ts, version).integrity.ok).toBe(true);
+  });
+
+  it('records a fast-forward approval as a simulated one, never as a named reviewer', async () => {
+    const linus = platform.actorFor('usr_linus') as Actor;
+    await expect(platform.demo.seed(linus, 'promoted')).rejects.toMatchObject({ status: 403 });
+
+    await platform.demo.seed(grace, 'promoted');
+    const ts = platform.store.forTenant(grace.tenantId);
+    const approval = ts.approvals.all(ts.tenantId)[0];
+    expect(approval?.actorUserId).toBe('system');
+    expect(approval?.actorName).toMatch(/simulated reviewer/);
+    expect(approval?.evidence).toMatchObject({ seeded: true });
+    const promoted = ts.listAudit({ action: 'reflex.promoted' }).items[0];
+    expect(promoted?.details).toMatchObject({ human: false, seeded: true });
+    expect(promoted?.actor).not.toBe(grace.name);
   });
 });

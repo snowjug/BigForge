@@ -10,12 +10,13 @@ interface Rule {
   replace: string | ((...args: string[]) => string);
 }
 
-const SECRET_VALUE = '(?=[A-Za-z0-9/_+=.-]*\\d)[A-Za-z0-9/_+=.-]{16,}';
+// Every quantifier below is bounded so adversarial input (logs are untrusted) cannot cause quadratic backtracking.
+const SECRET_VALUE = '(?=[A-Za-z0-9/_+=.-]{0,256}\\d)[A-Za-z0-9/_+=.-]{16,256}[A-Za-z0-9/_+=.-]*';
 
 const RULES: Rule[] = [
   {
     kind: 'private_key',
-    re: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+    re: /-----BEGIN [A-Z ]{0,30}PRIVATE KEY-----[\s\S]{0,8192}?-----END [A-Z ]{0,30}PRIVATE KEY-----/g,
     replace: '[REDACTED:private_key]',
   },
   {
@@ -24,8 +25,13 @@ const RULES: Rule[] = [
     replace: '$1 [REDACTED:bearer_token]',
   },
   {
+    kind: 'basic_auth',
+    re: /\b(Basic)\s+[A-Za-z0-9+/]{12,}={0,2}/g,
+    replace: '$1 [REDACTED:basic_auth]',
+  },
+  {
     kind: 'jwt',
-    re: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
+    re: /\beyJ[A-Za-z0-9_-]{8,2048}\.[A-Za-z0-9_-]{8,2048}\.[A-Za-z0-9_-]{8,2048}\b/g,
     replace: '[REDACTED:jwt]',
   },
   {
@@ -34,19 +40,39 @@ const RULES: Rule[] = [
     replace: '[REDACTED:cloud_access_key]',
   },
   {
+    kind: 'github_token',
+    re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,255}|github_pat_[A-Za-z0-9_]{20,255})\b/g,
+    replace: '[REDACTED:github_token]',
+  },
+  {
+    kind: 'api_key',
+    re: /\b(?:sk-(?:proj-|live-|test-)?[A-Za-z0-9_-]{20,255}|xox[abprs]-[A-Za-z0-9-]{10,255})\b/g,
+    replace: '[REDACTED:api_key]',
+  },
+  {
+    kind: 'azure_key',
+    re: /\b(AccountKey|SharedAccessKey|InstrumentationKey)=[A-Za-z0-9+/=-]{20,256}/g,
+    replace: '$1=[REDACTED:azure_key]',
+  },
+  {
+    kind: 'sas_signature',
+    re: /([?&]sig=)[A-Za-z0-9%+/=]{20,512}/g,
+    replace: '$1[REDACTED:sas_signature]',
+  },
+  {
     kind: 'forge_token',
     re: /\bfrg_(?:live|demo)_[A-Za-z0-9_]{8,}\b/g,
     replace: '[REDACTED:forge_token]',
   },
   {
     kind: 'url_credentials',
-    re: /\b([a-z][a-z0-9+.-]*:\/\/)([^\s:@/]+):([^\s@/]+)@/gi,
+    re: /\b([a-z][a-z0-9+.-]{0,30}:\/\/)([^\s:@/]{1,128}):([^\s@/]{1,256})@/gi,
     replace: '$1$2:[REDACTED:url_password]@',
   },
   {
     kind: 'secret_assignment',
     re: new RegExp(
-      `\\b([A-Za-z0-9_.-]*(?:api[_-]?key|token|secret|passw(?:or)?d|credential)[A-Za-z0-9_.-]*)(\\s*[:=]\\s*)(["']?)${SECRET_VALUE}\\3`,
+      `\\b([A-Za-z0-9_.-]{0,40}(?:api[_-]?key|token|secret|passw(?:or)?d|credential)[A-Za-z0-9_.-]{0,40})(\\s*[:=]\\s*)(["']?)${SECRET_VALUE}\\3`,
       'gi',
     ),
     replace: '$1$2$3[REDACTED:secret]$3',

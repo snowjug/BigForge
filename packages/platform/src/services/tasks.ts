@@ -69,7 +69,8 @@ export class TaskService {
 
   setEnvironment(actor: Actor, version: string): EnvironmentDto {
     assertCan(actor, 'inject_environment_change');
-    if (!(version in ENV_DESCRIPTIONS)) throw badRequest(`Unknown toolchain version: ${version}`);
+    if (!Object.hasOwn(ENV_DESCRIPTIONS, version))
+      throw badRequest(`Unknown toolchain version: ${version}`);
     const ts = this.p.store.forTenant(actor.tenantId);
     const current = ts.getSetting<EnvironmentSetting>('lab.environment', {
       ...DEFAULT_ENVIRONMENT,
@@ -246,6 +247,7 @@ export class TaskService {
     actor: Actor,
     taskId: string,
   ): { task: TaskDetailDto; match: FamilyMatch; reflexVersionId: string | null } {
+    assertCan(actor, 'run_task');
     const ts = this.p.store.forTenant(actor.tenantId);
     const task = ts.tasks.get(ts.tenantId, taskId);
     if (!task) throw notFound('Task');
